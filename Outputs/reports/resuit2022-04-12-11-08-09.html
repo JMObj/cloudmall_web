@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>resuit2022-04-12-11-08-09.html</h1>
+    <p>Report generated on 12-Apr-2022 at 11:18:24 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>/Library/Java/JavaVirtualMachines/jdk1.8.0_321.jdk/Contents/Home</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "6.2.4"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-10.14.6-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "1.11.0", "rerunfailures": "10.2"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>10 tests ran in 613.01 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">10 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">1 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_delete_item</td>
+          <td class="col-duration">15.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;TestCases.test_cart.TestCart object at 0x10bcf8a90&gt;<br/>init_driver = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;979051a99e320b9652bab518f93801bc&quot;)&gt;<br/><br/>    @pytest.mark.haffprice<br/>    @pytest.mark.cloudmall<br/>    @pytest.mark.usefixtures(&#x27;init_driver&#x27;)<br/>    def test_cart_delete_item(self, init_driver):<br/>        &#x27;&#x27;&#x27;<br/>        添加商品到购物车后删除商品<br/>        :return:<br/>        &#x27;&#x27;&#x27;<br/>&gt;       assert CartPage(init_driver).delete_item() is True<br/><span class="error">E       assert False is True</span><br/><span class="error">E        +  where False = &lt;bound method CartPage.delete_item of &lt;PageObject.cart_page.CartPage object at 0x10bddbd60&gt;&gt;()</span><br/><span class="error">E        +    where &lt;bound method CartPage.delete_item of &lt;PageObject.cart_page.CartPage object at 0x10bddbd60&gt;&gt; = &lt;PageObject.cart_page.CartPage object at 0x10bddbd60&gt;.delete_item</span><br/><span class="error">E        +      where &lt;PageObject.cart_page.CartPage object at 0x10bddbd60&gt; = CartPage(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;979051a99e320b9652bab518f93801bc&quot;)&gt;)</span><br/><br/>TestCases/test_cart.py:30: AssertionError<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:09:04,767 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:04,790 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:04,839 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:09:04:
+2022-04-12 11:09:04,920 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:09:04:
+2022-04-12 11:09:07,479 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,488 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,489 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,513 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,812 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:09:07,813 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,813 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,838 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:07:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:09:04:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:09:04:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:07:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:09:11,871 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:09:11,876 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:09:11,876 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:09:11:
+2022-04-12 11:09:15,761 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:09:15:
+2022-04-12 11:09:15,985 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:09:15,986 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:09:15,987 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:09:15:
+2022-04-12 11:09:16,543 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:09:16:
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:09:16:
+2022-04-12 11:09:18,748 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:09:18:
+2022-04-12 11:09:21,880 - [basepage.py--&gt;line:86] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:09:21,880 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:09:21,881 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--04--12 11:09:21:
+2022-04-12 11:09:21,906 - [basepage.py--&gt;line:49] - INFO: 购物车列表编辑按钮等待结束时间2022--04--12 11:09:21:
+2022-04-12 11:09:22,023 - [basepage.py--&gt;line:86] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:09:22,024 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:09:22,024 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,045 - [basepage.py--&gt;line:49] - INFO: 购物车列表删除按钮等待结束时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,155 - [basepage.py--&gt;line:86] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:09:22,155 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:09:22,156 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,186 - [basepage.py--&gt;line:49] - INFO: 删除商品后二次确认等待结束时间2022--04--12 11:09:22:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:09:11:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:09:15:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:09:15:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:09:16:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:09:16:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:09:18:
+INFO     cases:basepage.py:86 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--04--12 11:09:21:
+INFO     cases:basepage.py:49 购物车列表编辑按钮等待结束时间2022--04--12 11:09:21:
+INFO     cases:basepage.py:86 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:49 购物车列表删除按钮等待结束时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:86 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:49 删除商品后二次确认等待结束时间2022--04--12 11:09:22:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_add_item</td>
+          <td class="col-duration">45.00</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:08:25,801 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:08:25,805 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:08:25,807 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:08:25:
+2022-04-12 11:08:26,620 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:08:26:
+2022-04-12 11:08:29,972 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:08:29,973 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:08:29,973 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:08:29:
+2022-04-12 11:08:29,997 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:08:29:
+2022-04-12 11:08:32,343 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:08:32,359 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:08:32,359 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:08:32:
+2022-04-12 11:08:32,376 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:08:32:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:08:25:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:08:26:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:08:29:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:08:29:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:08:32:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:08:32:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:08:39,693 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:08:39,694 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:08:39,694 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:08:39:
+2022-04-12 11:08:49,662 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:08:49:
+2022-04-12 11:08:49,925 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:08:49,925 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:08:49,925 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:08:49:
+2022-04-12 11:08:50,812 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:08:50:
+2022-04-12 11:08:50,937 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:08:50,937 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:08:50,937 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:08:50:
+2022-04-12 11:08:53,026 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:08:53:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:08:39:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:08:49:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:08:49:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:08:50:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:08:50:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:08:53:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_delete_item</td>
+          <td class="col-duration">194.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:09:04,767 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:04,790 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:04,839 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:09:04:
+2022-04-12 11:09:04,920 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:09:04:
+2022-04-12 11:09:07,479 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,488 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,489 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,513 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,812 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:09:07,813 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:07,813 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:07:
+2022-04-12 11:09:07,838 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:07:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:09:04:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:09:04:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:07:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:07:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:09:11,871 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:09:11,876 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:09:11,876 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:09:11:
+2022-04-12 11:09:15,761 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:09:15:
+2022-04-12 11:09:15,985 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:09:15,986 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:09:15,987 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:09:15:
+2022-04-12 11:09:16,543 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:09:16:
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:09:16,667 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:09:16:
+2022-04-12 11:09:18,748 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:09:18:
+2022-04-12 11:09:21,880 - [basepage.py--&gt;line:86] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:09:21,880 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:09:21,881 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--04--12 11:09:21:
+2022-04-12 11:09:21,906 - [basepage.py--&gt;line:49] - INFO: 购物车列表编辑按钮等待结束时间2022--04--12 11:09:21:
+2022-04-12 11:09:22,023 - [basepage.py--&gt;line:86] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:09:22,024 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:09:22,024 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,045 - [basepage.py--&gt;line:49] - INFO: 购物车列表删除按钮等待结束时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,155 - [basepage.py--&gt;line:86] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:09:22,155 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:09:22,156 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--04--12 11:09:22:
+2022-04-12 11:09:22,186 - [basepage.py--&gt;line:49] - INFO: 删除商品后二次确认等待结束时间2022--04--12 11:09:22:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:09:11:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:09:15:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:09:15:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:09:16:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:09:16:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:09:18:
+INFO     cases:basepage.py:86 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--04--12 11:09:21:
+INFO     cases:basepage.py:49 购物车列表编辑按钮等待结束时间2022--04--12 11:09:21:
+INFO     cases:basepage.py:86 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:49 购物车列表删除按钮等待结束时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:86 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--04--12 11:09:22:
+INFO     cases:basepage.py:49 删除商品后二次确认等待结束时间2022--04--12 11:09:22:<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:09:39,690 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:39,692 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:09:39,694 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:09:39:
+2022-04-12 11:09:41,456 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:09:41:
+2022-04-12 11:09:44,096 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:44,097 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:44,097 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:44:
+2022-04-12 11:09:44,120 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:44:
+2022-04-12 11:09:44,404 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:09:44,404 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:09:44,405 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:09:44:
+2022-04-12 11:09:44,419 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:09:44:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:09:39:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:09:41:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:44:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:44:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:09:44:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:09:44:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:12:15,029 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:12:15,033 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:12:15,033 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:12:15:
+2022-04-12 11:12:15,069 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:12:15:
+2022-04-12 11:12:15,528 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:12:15,529 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:12:15,529 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:12:15:
+2022-04-12 11:12:16,170 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:12:16:
+2022-04-12 11:12:16,316 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:12:16,316 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:12:16,316 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:12:16:
+2022-04-12 11:12:17,917 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:12:17:
+2022-04-12 11:12:21,106 - [basepage.py--&gt;line:86] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:12:21,106 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-04-12 11:12:21,106 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--04--12 11:12:21:
+2022-04-12 11:12:21,130 - [basepage.py--&gt;line:49] - INFO: 购物车列表编辑按钮等待结束时间2022--04--12 11:12:21:
+2022-04-12 11:12:21,289 - [basepage.py--&gt;line:86] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:12:21,289 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-04-12 11:12:21,290 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--04--12 11:12:21:
+2022-04-12 11:12:21,348 - [basepage.py--&gt;line:49] - INFO: 购物车列表删除按钮等待结束时间2022--04--12 11:12:21:
+2022-04-12 11:12:21,502 - [basepage.py--&gt;line:86] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:12:21,503 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:12:21,503 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--04--12 11:12:21:
+2022-04-12 11:12:21,601 - [basepage.py--&gt;line:49] - INFO: 删除商品后二次确认等待结束时间2022--04--12 11:12:21:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:12:15:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:12:15:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:12:15:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:12:16:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:12:16:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:12:17:
+INFO     cases:basepage.py:86 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--04--12 11:12:21:
+INFO     cases:basepage.py:49 购物车列表编辑按钮等待结束时间2022--04--12 11:12:21:
+INFO     cases:basepage.py:86 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--04--12 11:12:21:
+INFO     cases:basepage.py:49 购物车列表删除按钮等待结束时间2022--04--12 11:12:21:
+INFO     cases:basepage.py:86 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--04--12 11:12:21:
+INFO     cases:basepage.py:49 删除商品后二次确认等待结束时间2022--04--12 11:12:21:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_home.py::TestHome::test_home_search</td>
+          <td class="col-duration">17.38</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:12:39,333 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:12:39,335 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:12:39,336 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:12:39:
+2022-04-12 11:12:40,007 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:12:40:
+2022-04-12 11:12:42,651 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:42,652 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:42,652 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:12:42:
+2022-04-12 11:12:42,676 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:12:42:
+2022-04-12 11:12:42,928 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:12:42,928 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:42,928 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:12:42:
+2022-04-12 11:12:42,945 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:12:42:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:12:39:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:12:40:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:12:42:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:12:42:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:12:42:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:12:42:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:12:46,448 - [basepage.py--&gt;line:37] - INFO: 首页搜索按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+2022-04-12 11:12:46,449 - [basepage.py--&gt;line:40] - INFO: 首页搜索按钮等待开始时间2022--04--12 11:12:46:
+2022-04-12 11:12:46,470 - [basepage.py--&gt;line:49] - INFO: 首页搜索按钮等待结束时间2022--04--12 11:12:46:
+2022-04-12 11:12:46,470 - [basepage.py--&gt;line:86] - INFO: 点击首页搜索按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+2022-04-12 11:12:46,470 - [basepage.py--&gt;line:37] - INFO: 点击首页搜索按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+2022-04-12 11:12:46,470 - [basepage.py--&gt;line:40] - INFO: 点击首页搜索按钮等待开始时间2022--04--12 11:12:46:
+2022-04-12 11:12:46,484 - [basepage.py--&gt;line:49] - INFO: 点击首页搜索按钮等待结束时间2022--04--12 11:12:46:
+2022-04-12 11:12:46,606 - [basepage.py--&gt;line:105] - INFO: 首页搜索输入框对(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)输入Shoes
+2022-04-12 11:12:46,607 - [basepage.py--&gt;line:37] - INFO: 首页搜索输入框等待(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)元素
+2022-04-12 11:12:46,607 - [basepage.py--&gt;line:40] - INFO: 首页搜索输入框等待开始时间2022--04--12 11:12:46:
+2022-04-12 11:12:47,147 - [basepage.py--&gt;line:49] - INFO: 首页搜索输入框等待结束时间2022--04--12 11:12:47:
+2022-04-12 11:12:47,264 - [basepage.py--&gt;line:261] - INFO: 首页搜索输入框键盘输入回车
+2022-04-12 11:12:47,264 - [basepage.py--&gt;line:62] - INFO: 首页搜索输入框等待(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)元素可见
+2022-04-12 11:12:47,264 - [basepage.py--&gt;line:65] - INFO: 首页搜索输入框等待起止时间2022--04--12 11:12:47:
+2022-04-12 11:12:47,270 - [basepage.py--&gt;line:75] - INFO: 首页搜索输入框等待结束时间2022--04--12 11:12:47:
+2022-04-12 11:12:47,336 - [basepage.py--&gt;line:37] - INFO: 首页搜索结果购物车图标等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/discount/addCart.svg&quot;]&#x27;)元素
+2022-04-12 11:12:47,337 - [basepage.py--&gt;line:40] - INFO: 首页搜索结果购物车图标等待开始时间2022--04--12 11:12:47:
+2022-04-12 11:12:48,384 - [basepage.py--&gt;line:49] - INFO: 首页搜索结果购物车图标等待结束时间2022--04--12 11:12:48:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:37 首页搜索按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+INFO     cases:basepage.py:40 首页搜索按钮等待开始时间2022--04--12 11:12:46:
+INFO     cases:basepage.py:49 首页搜索按钮等待结束时间2022--04--12 11:12:46:
+INFO     cases:basepage.py:86 点击首页搜索按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+INFO     cases:basepage.py:37 点击首页搜索按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/a/img&#x27;)元素
+INFO     cases:basepage.py:40 点击首页搜索按钮等待开始时间2022--04--12 11:12:46:
+INFO     cases:basepage.py:49 点击首页搜索按钮等待结束时间2022--04--12 11:12:46:
+INFO     cases:basepage.py:105 首页搜索输入框对(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)输入Shoes
+INFO     cases:basepage.py:37 首页搜索输入框等待(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 首页搜索输入框等待开始时间2022--04--12 11:12:46:
+INFO     cases:basepage.py:49 首页搜索输入框等待结束时间2022--04--12 11:12:47:
+INFO     cases:basepage.py:261 首页搜索输入框键盘输入回车
+INFO     cases:basepage.py:62 首页搜索输入框等待(&#x27;xpath&#x27;, &#x27;//*[@type= &quot;text&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:65 首页搜索输入框等待起止时间2022--04--12 11:12:47:
+INFO     cases:basepage.py:75 首页搜索输入框等待结束时间2022--04--12 11:12:47:
+INFO     cases:basepage.py:37 首页搜索结果购物车图标等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/discount/addCart.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 首页搜索结果购物车图标等待开始时间2022--04--12 11:12:47:
+INFO     cases:basepage.py:49 首页搜索结果购物车图标等待结束时间2022--04--12 11:12:48:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_itmes.py::TestItmes::test_buy_also_buy</td>
+          <td class="col-duration">20.78</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:12:55,433 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:12:55,433 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:12:55,434 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:12:55:
+2022-04-12 11:12:55,463 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:12:55:
+2022-04-12 11:12:58,083 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:58,085 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:58,085 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:12:58:
+2022-04-12 11:12:58,108 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:12:58:
+2022-04-12 11:12:58,380 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:12:58,380 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:12:58,380 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:12:58:
+2022-04-12 11:12:58,396 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:12:58:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:12:55:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:12:55:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:12:58:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:12:58:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:12:58:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:12:58:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:13:05,918 - [basepage.py--&gt;line:241] - INFO: buy_also_buy商品详情页滑动页面滑动
+2022-04-12 11:13:07,942 - [basepage.py--&gt;line:86] - INFO: 点击查看buy_also_buy商品列表按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;购买该物品的用户也可能购买&quot;]/following-sibling::div&#x27;)元素
+2022-04-12 11:13:07,942 - [basepage.py--&gt;line:37] - INFO: 点击查看buy_also_buy商品列表按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;购买该物品的用户也可能购买&quot;]/following-sibling::div&#x27;)元素
+2022-04-12 11:13:07,942 - [basepage.py--&gt;line:40] - INFO: 点击查看buy_also_buy商品列表按钮等待开始时间2022--04--12 11:13:07:
+2022-04-12 11:13:08,067 - [basepage.py--&gt;line:49] - INFO: 点击查看buy_also_buy商品列表按钮等待结束时间2022--04--12 11:13:08:
+2022-04-12 11:13:08,231 - [basepage.py--&gt;line:37] - INFO: buy_also_buy商品列表购物车图标等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/discount/addCart.svg&quot;]&#x27;)元素
+2022-04-12 11:13:08,232 - [basepage.py--&gt;line:40] - INFO: buy_also_buy商品列表购物车图标等待开始时间2022--04--12 11:13:08:
+2022-04-12 11:13:09,297 - [basepage.py--&gt;line:49] - INFO: buy_also_buy商品列表购物车图标等待结束时间2022--04--12 11:13:09:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:241 buy_also_buy商品详情页滑动页面滑动
+INFO     cases:basepage.py:86 点击查看buy_also_buy商品列表按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;购买该物品的用户也可能购买&quot;]/following-sibling::div&#x27;)元素
+INFO     cases:basepage.py:37 点击查看buy_also_buy商品列表按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;购买该物品的用户也可能购买&quot;]/following-sibling::div&#x27;)元素
+INFO     cases:basepage.py:40 点击查看buy_also_buy商品列表按钮等待开始时间2022--04--12 11:13:07:
+INFO     cases:basepage.py:49 点击查看buy_also_buy商品列表按钮等待结束时间2022--04--12 11:13:08:
+INFO     cases:basepage.py:37 buy_also_buy商品列表购物车图标等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/discount/addCart.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 buy_also_buy商品列表购物车图标等待开始时间2022--04--12 11:13:08:
+INFO     cases:basepage.py:49 buy_also_buy商品列表购物车图标等待结束时间2022--04--12 11:13:09:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_itmes.py::TestItmes::test_comment</td>
+          <td class="col-duration">20.59</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:13:17,383 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:17,386 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:17,386 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:13:17:
+2022-04-12 11:13:17,462 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:13:17:
+2022-04-12 11:13:19,994 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:19,994 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:19,994 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:13:19:
+2022-04-12 11:13:20,017 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:13:20:
+2022-04-12 11:13:20,296 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:13:20,296 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:20,296 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:13:20:
+2022-04-12 11:13:20,311 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:13:20:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:13:17:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:13:17:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:13:19:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:13:20:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:13:20:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:13:20:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:13:27,035 - [basepage.py--&gt;line:241] - INFO: 评论商品详情页滑动页面滑动
+2022-04-12 11:13:28,143 - [basepage.py--&gt;line:86] - INFO: 商品详情页打开评论点击(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;用户评论&quot;)]&#x27;)元素
+2022-04-12 11:13:28,144 - [basepage.py--&gt;line:37] - INFO: 商品详情页打开评论等待(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;用户评论&quot;)]&#x27;)元素
+2022-04-12 11:13:28,144 - [basepage.py--&gt;line:40] - INFO: 商品详情页打开评论等待开始时间2022--04--12 11:13:28:
+2022-04-12 11:13:28,222 - [basepage.py--&gt;line:49] - INFO: 商品详情页打开评论等待结束时间2022--04--12 11:13:28:
+2022-04-12 11:13:28,866 - [basepage.py--&gt;line:37] - INFO: 检测评论详情页 所有 文案是否存在等待(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;所有&quot;)]&#x27;)元素
+2022-04-12 11:13:28,866 - [basepage.py--&gt;line:40] - INFO: 检测评论详情页 所有 文案是否存在等待开始时间2022--04--12 11:13:28:
+2022-04-12 11:13:29,827 - [basepage.py--&gt;line:49] - INFO: 检测评论详情页 所有 文案是否存在等待结束时间2022--04--12 11:13:29:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:241 评论商品详情页滑动页面滑动
+INFO     cases:basepage.py:86 商品详情页打开评论点击(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;用户评论&quot;)]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页打开评论等待(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;用户评论&quot;)]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页打开评论等待开始时间2022--04--12 11:13:28:
+INFO     cases:basepage.py:49 商品详情页打开评论等待结束时间2022--04--12 11:13:28:
+INFO     cases:basepage.py:37 检测评论详情页 所有 文案是否存在等待(&#x27;xpath&#x27;, &#x27;//*[contains(text(),&quot;所有&quot;)]&#x27;)元素
+INFO     cases:basepage.py:40 检测评论详情页 所有 文案是否存在等待开始时间2022--04--12 11:13:28:
+INFO     cases:basepage.py:49 检测评论详情页 所有 文案是否存在等待结束时间2022--04--12 11:13:29:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_itmes.py::TestItmes::test_size</td>
+          <td class="col-duration">19.87</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:13:36,961 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:36,962 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:36,964 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:13:36:
+2022-04-12 11:13:36,986 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:13:36:
+2022-04-12 11:13:39,720 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:39,721 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:39,721 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:13:39:
+2022-04-12 11:13:39,741 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:13:39:
+2022-04-12 11:13:39,949 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:13:39,949 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:13:39,949 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:13:39:
+2022-04-12 11:13:39,962 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:13:39:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:13:36:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:13:36:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:13:39:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:13:39:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:13:39:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:13:39:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:13:46,728 - [basepage.py--&gt;line:241] - INFO: 商品详情页滑动页面滑动
+2022-04-12 11:13:47,649 - [basepage.py--&gt;line:86] - INFO: 打开商品规格点击(&#x27;xpath&#x27;, &#x27;//*[@data-bg=&quot;https://imgs.cloudmall.co/store/20210719/60f57bf32854336d8b07fed4.jpg!largev3&quot;]&#x27;)元素
+2022-04-12 11:13:47,649 - [basepage.py--&gt;line:37] - INFO: 打开商品规格等待(&#x27;xpath&#x27;, &#x27;//*[@data-bg=&quot;https://imgs.cloudmall.co/store/20210719/60f57bf32854336d8b07fed4.jpg!largev3&quot;]&#x27;)元素
+2022-04-12 11:13:47,649 - [basepage.py--&gt;line:40] - INFO: 打开商品规格等待开始时间2022--04--12 11:13:47:
+2022-04-12 11:13:47,684 - [basepage.py--&gt;line:49] - INFO: 打开商品规格等待结束时间2022--04--12 11:13:47:
+2022-04-12 11:13:47,887 - [basepage.py--&gt;line:86] - INFO: 点击查看商品尺码表按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;尺码表&quot;]&#x27;)元素
+2022-04-12 11:13:47,887 - [basepage.py--&gt;line:37] - INFO: 点击查看商品尺码表按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;尺码表&quot;]&#x27;)元素
+2022-04-12 11:13:47,887 - [basepage.py--&gt;line:40] - INFO: 点击查看商品尺码表按钮等待开始时间2022--04--12 11:13:47:
+2022-04-12 11:13:48,448 - [basepage.py--&gt;line:49] - INFO: 点击查看商品尺码表按钮等待结束时间2022--04--12 11:13:48:
+2022-04-12 11:13:48,596 - [basepage.py--&gt;line:37] - INFO: 检测尺码表详情页How To Measure是否存在等待(&#x27;xpath&#x27;, &#x27;//h3[text()=&quot;How To Measure&quot;]&#x27;)元素
+2022-04-12 11:13:48,596 - [basepage.py--&gt;line:40] - INFO: 检测尺码表详情页How To Measure是否存在等待开始时间2022--04--12 11:13:48:
+2022-04-12 11:13:49,671 - [basepage.py--&gt;line:49] - INFO: 检测尺码表详情页How To Measure是否存在等待结束时间2022--04--12 11:13:49:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:241 商品详情页滑动页面滑动
+INFO     cases:basepage.py:86 打开商品规格点击(&#x27;xpath&#x27;, &#x27;//*[@data-bg=&quot;https://imgs.cloudmall.co/store/20210719/60f57bf32854336d8b07fed4.jpg!largev3&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 打开商品规格等待(&#x27;xpath&#x27;, &#x27;//*[@data-bg=&quot;https://imgs.cloudmall.co/store/20210719/60f57bf32854336d8b07fed4.jpg!largev3&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 打开商品规格等待开始时间2022--04--12 11:13:47:
+INFO     cases:basepage.py:49 打开商品规格等待结束时间2022--04--12 11:13:47:
+INFO     cases:basepage.py:86 点击查看商品尺码表按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;尺码表&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 点击查看商品尺码表按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;尺码表&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 点击查看商品尺码表按钮等待开始时间2022--04--12 11:13:47:
+INFO     cases:basepage.py:49 点击查看商品尺码表按钮等待结束时间2022--04--12 11:13:48:
+INFO     cases:basepage.py:37 检测尺码表详情页How To Measure是否存在等待(&#x27;xpath&#x27;, &#x27;//h3[text()=&quot;How To Measure&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 检测尺码表详情页How To Measure是否存在等待开始时间2022--04--12 11:13:48:
+INFO     cases:basepage.py:49 检测尺码表详情页How To Measure是否存在等待结束时间2022--04--12 11:13:49:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_itmes.py::TestItmes::test_video</td>
+          <td class="col-duration">85.65</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:13:57,201 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:57,205 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:13:57,205 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:13:57:
+2022-04-12 11:13:57,263 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:13:57:
+2022-04-12 11:14:00,057 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:14:00,058 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:14:00,058 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:14:00:
+2022-04-12 11:14:00,081 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:14:00:
+2022-04-12 11:14:00,301 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:14:00,302 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:14:00,302 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:14:00:
+2022-04-12 11:14:00,314 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:14:00:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:13:57:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:13:57:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:14:00:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:14:00:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:14:00:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:14:00:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:15:14,035 - [basepage.py--&gt;line:86] - INFO: 点击视频播放按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/dp/item-video-play-icon.png&quot;]&#x27;)元素
+2022-04-12 11:15:14,036 - [basepage.py--&gt;line:37] - INFO: 点击视频播放按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/dp/item-video-play-icon.png&quot;]&#x27;)元素
+2022-04-12 11:15:14,037 - [basepage.py--&gt;line:40] - INFO: 点击视频播放按钮等待开始时间2022--04--12 11:15:14:
+2022-04-12 11:15:14,067 - [basepage.py--&gt;line:49] - INFO: 点击视频播放按钮等待结束时间2022--04--12 11:15:14:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 点击视频播放按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/dp/item-video-play-icon.png&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 点击视频播放按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/dp/item-video-play-icon.png&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 点击视频播放按钮等待开始时间2022--04--12 11:15:14:
+INFO     cases:basepage.py:49 点击视频播放按钮等待结束时间2022--04--12 11:15:14:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_login.py::Testlogin::test_login_success</td>
+          <td class="col-duration">23.37</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:15:22,699 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:22,701 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:22,702 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:15:22:
+2022-04-12 11:15:22,751 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:15:22:
+2022-04-12 11:15:25,291 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:25,292 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:25,292 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:15:25:
+2022-04-12 11:15:25,337 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:15:25:
+2022-04-12 11:15:25,609 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:15:25,609 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:25,610 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:15:25:
+2022-04-12 11:15:25,625 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:15:25:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:15:22:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:15:22:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:15:25:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:15:25:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:15:25:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:15:25:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:15:29,153 - [basepage.py--&gt;line:37] - INFO: 首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:29,154 - [basepage.py--&gt;line:40] - INFO: 首页菜单按钮等待开始时间2022--04--12 11:15:29:
+2022-04-12 11:15:29,174 - [basepage.py--&gt;line:49] - INFO: 首页菜单按钮等待结束时间2022--04--12 11:15:29:
+2022-04-12 11:15:29,174 - [basepage.py--&gt;line:86] - INFO: 点击首页菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:29,174 - [basepage.py--&gt;line:37] - INFO: 点击首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:29,174 - [basepage.py--&gt;line:40] - INFO: 点击首页菜单按钮等待开始时间2022--04--12 11:15:29:
+2022-04-12 11:15:29,186 - [basepage.py--&gt;line:49] - INFO: 点击首页菜单按钮等待结束时间2022--04--12 11:15:29:
+2022-04-12 11:15:29,301 - [basepage.py--&gt;line:86] - INFO: 点击首页登录注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+2022-04-12 11:15:29,302 - [basepage.py--&gt;line:37] - INFO: 点击首页登录注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+2022-04-12 11:15:29,302 - [basepage.py--&gt;line:40] - INFO: 点击首页登录注册按钮等待开始时间2022--04--12 11:15:29:
+2022-04-12 11:15:29,844 - [basepage.py--&gt;line:49] - INFO: 点击首页登录注册按钮等待结束时间2022--04--12 11:15:29:
+2022-04-12 11:15:30,973 - [basepage.py--&gt;line:86] - INFO: 选择邮箱注册点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+2022-04-12 11:15:30,973 - [basepage.py--&gt;line:37] - INFO: 选择邮箱注册等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+2022-04-12 11:15:30,973 - [basepage.py--&gt;line:40] - INFO: 选择邮箱注册等待开始时间2022--04--12 11:15:30:
+2022-04-12 11:15:31,022 - [basepage.py--&gt;line:49] - INFO: 选择邮箱注册等待结束时间2022--04--12 11:15:31:
+2022-04-12 11:15:31,203 - [basepage.py--&gt;line:105] - INFO: 邮箱注册输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)输入329851@qq.com
+2022-04-12 11:15:31,204 - [basepage.py--&gt;line:37] - INFO: 邮箱注册输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)元素
+2022-04-12 11:15:31,204 - [basepage.py--&gt;line:40] - INFO: 邮箱注册输入框等待开始时间2022--04--12 11:15:31:
+2022-04-12 11:15:31,273 - [basepage.py--&gt;line:49] - INFO: 邮箱注册输入框等待结束时间2022--04--12 11:15:31:
+2022-04-12 11:15:31,472 - [basepage.py--&gt;line:86] - INFO: 输入邮箱后的注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:15:31,472 - [basepage.py--&gt;line:37] - INFO: 输入邮箱后的注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:15:31,472 - [basepage.py--&gt;line:40] - INFO: 输入邮箱后的注册按钮等待开始时间2022--04--12 11:15:31:
+2022-04-12 11:15:31,501 - [basepage.py--&gt;line:49] - INFO: 输入邮箱后的注册按钮等待结束时间2022--04--12 11:15:31:
+2022-04-12 11:15:31,633 - [basepage.py--&gt;line:105] - INFO: 邮箱注册姓名输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)输入test
+2022-04-12 11:15:31,634 - [basepage.py--&gt;line:37] - INFO: 邮箱注册姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)元素
+2022-04-12 11:15:31,634 - [basepage.py--&gt;line:40] - INFO: 邮箱注册姓名输入框等待开始时间2022--04--12 11:15:31:
+2022-04-12 11:15:32,188 - [basepage.py--&gt;line:49] - INFO: 邮箱注册姓名输入框等待结束时间2022--04--12 11:15:32:
+2022-04-12 11:15:32,253 - [basepage.py--&gt;line:105] - INFO: 邮箱注册密码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)输入123456
+2022-04-12 11:15:32,253 - [basepage.py--&gt;line:37] - INFO: 邮箱注册密码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)元素
+2022-04-12 11:15:32,253 - [basepage.py--&gt;line:40] - INFO: 邮箱注册密码输入框等待开始时间2022--04--12 11:15:32:
+2022-04-12 11:15:32,283 - [basepage.py--&gt;line:49] - INFO: 邮箱注册密码输入框等待结束时间2022--04--12 11:15:32:
+2022-04-12 11:15:32,366 - [basepage.py--&gt;line:86] - INFO: 邮箱注册输入完所填的信息后的保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:15:32,366 - [basepage.py--&gt;line:37] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:15:32,366 - [basepage.py--&gt;line:40] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待开始时间2022--04--12 11:15:32:
+2022-04-12 11:15:32,388 - [basepage.py--&gt;line:49] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待结束时间2022--04--12 11:15:32:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:37 首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页菜单按钮等待开始时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:49 首页菜单按钮等待结束时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:86 点击首页菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 点击首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 点击首页菜单按钮等待开始时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:49 点击首页菜单按钮等待结束时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:86 点击首页登录注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+INFO     cases:basepage.py:37 点击首页登录注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+INFO     cases:basepage.py:40 点击首页登录注册按钮等待开始时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:49 点击首页登录注册按钮等待结束时间2022--04--12 11:15:29:
+INFO     cases:basepage.py:86 选择邮箱注册点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+INFO     cases:basepage.py:37 选择邮箱注册等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+INFO     cases:basepage.py:40 选择邮箱注册等待开始时间2022--04--12 11:15:30:
+INFO     cases:basepage.py:49 选择邮箱注册等待结束时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:105 邮箱注册输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)输入329851@qq.com
+INFO     cases:basepage.py:37 邮箱注册输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册输入框等待开始时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:49 邮箱注册输入框等待结束时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:86 输入邮箱后的注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:37 输入邮箱后的注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:40 输入邮箱后的注册按钮等待开始时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:49 输入邮箱后的注册按钮等待结束时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:105 邮箱注册姓名输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)输入test
+INFO     cases:basepage.py:37 邮箱注册姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册姓名输入框等待开始时间2022--04--12 11:15:31:
+INFO     cases:basepage.py:49 邮箱注册姓名输入框等待结束时间2022--04--12 11:15:32:
+INFO     cases:basepage.py:105 邮箱注册密码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)输入123456
+INFO     cases:basepage.py:37 邮箱注册密码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册密码输入框等待开始时间2022--04--12 11:15:32:
+INFO     cases:basepage.py:49 邮箱注册密码输入框等待结束时间2022--04--12 11:15:32:
+INFO     cases:basepage.py:86 邮箱注册输入完所填的信息后的保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:37 邮箱注册输入完所填的信息后的保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册输入完所填的信息后的保存按钮等待开始时间2022--04--12 11:15:32:
+INFO     cases:basepage.py:49 邮箱注册输入完所填的信息后的保存按钮等待结束时间2022--04--12 11:15:32:<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_order.py::TestOrder::test_us_guest_adyen_order</td>
+          <td class="col-duration">62.82</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:15:46,307 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:46,308 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:15:46,308 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:15:46:
+2022-04-12 11:15:46,332 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:15:46:
+2022-04-12 11:15:48,991 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:48,991 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:48,992 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:15:48:
+2022-04-12 11:15:49,027 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:15:49:
+2022-04-12 11:15:49,229 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-04-12 11:15:49,230 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:15:49,230 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:15:49:
+2022-04-12 11:15:49,248 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:15:49:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:15:46:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:15:46:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:15:48:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:15:49:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:15:49:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:15:49:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:15:53,072 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:15:53,073 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:15:53,073 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:15:53:
+2022-04-12 11:15:55,402 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:15:55:
+2022-04-12 11:15:55,635 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:15:55,635 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:15:55,635 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:15:55:
+2022-04-12 11:15:56,246 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:15:56:
+2022-04-12 11:15:56,394 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:15:56,395 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:15:56,396 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:15:56:
+2022-04-12 11:15:58,018 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:15:58:
+2022-04-12 11:15:58,144 - [basepage.py--&gt;line:86] - INFO: 购物车列表选择测品去结算点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+2022-04-12 11:15:58,144 - [basepage.py--&gt;line:37] - INFO: 购物车列表选择测品去结算等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+2022-04-12 11:15:58,144 - [basepage.py--&gt;line:40] - INFO: 购物车列表选择测品去结算等待开始时间2022--04--12 11:15:58:
+2022-04-12 11:15:58,685 - [basepage.py--&gt;line:49] - INFO: 购物车列表选择测品去结算等待结束时间2022--04--12 11:15:58:
+2022-04-12 11:15:58,858 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址姓名输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)输入test
+2022-04-12 11:15:58,858 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+2022-04-12 11:15:58,860 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址姓名输入等待开始时间2022--04--12 11:15:58:
+2022-04-12 11:16:01,557 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址姓名输入等待结束时间2022--04--12 11:16:01:
+2022-04-12 11:16:01,884 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址手机号输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)输入123456
+2022-04-12 11:16:01,884 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址手机号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)元素
+2022-04-12 11:16:01,884 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址手机号输入等待开始时间2022--04--12 11:16:01:
+2022-04-12 11:16:01,908 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址手机号输入等待结束时间2022--04--12 11:16:01:
+2022-04-12 11:16:02,014 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址街道输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)输入Orr
+2022-04-12 11:16:02,014 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址街道输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)元素
+2022-04-12 11:16:02,014 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址街道输入等待开始时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,052 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址街道输入等待结束时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,185 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址城市输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)输入Dall
+2022-04-12 11:16:02,185 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址城市输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)元素
+2022-04-12 11:16:02,185 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址城市输入等待开始时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,231 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址城市输入等待结束时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,361 - [basepage.py--&gt;line:86] - INFO: 订单页面添加地址省选择点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;provinceSelect&quot;]&#x27;)元素
+2022-04-12 11:16:02,362 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址省选择等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;provinceSelect&quot;]&#x27;)元素
+2022-04-12 11:16:02,362 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址省选择等待开始时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,400 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址省选择等待结束时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,699 - [basepage.py--&gt;line:86] - INFO: 订单页面添加地址选择指定的省点击(&#x27;xpath&#x27;, &#x27;//*[@title =&quot;Arizona&quot;]&#x27;)元素
+2022-04-12 11:16:02,701 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址选择指定的省等待(&#x27;xpath&#x27;, &#x27;//*[@title =&quot;Arizona&quot;]&#x27;)元素
+2022-04-12 11:16:02,701 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址选择指定的省等待开始时间2022--04--12 11:16:02:
+2022-04-12 11:16:02,752 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址选择指定的省等待结束时间2022--04--12 11:16:02:
+2022-04-12 11:16:03,081 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址输入邮编对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)输入11111
+2022-04-12 11:16:03,096 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址输入邮编等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)元素
+2022-04-12 11:16:03,097 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址输入邮编等待开始时间2022--04--12 11:16:03:
+2022-04-12 11:16:03,126 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址输入邮编等待结束时间2022--04--12 11:16:03:
+2022-04-12 11:16:03,533 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址输入邮箱对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)输入jiaming.yang@cloudmall.ai
+2022-04-12 11:16:03,533 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址输入邮箱等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+2022-04-12 11:16:03,533 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址输入邮箱等待开始时间2022--04--12 11:16:03:
+2022-04-12 11:16:03,559 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址输入邮箱等待结束时间2022--04--12 11:16:03:
+2022-04-12 11:16:04,126 - [basepage.py--&gt;line:86] - INFO: 订单页面地址保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+2022-04-12 11:16:04,126 - [basepage.py--&gt;line:37] - INFO: 订单页面地址保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+2022-04-12 11:16:04,127 - [basepage.py--&gt;line:40] - INFO: 订单页面地址保存按钮等待开始时间2022--04--12 11:16:04:
+2022-04-12 11:16:04,422 - [basepage.py--&gt;line:49] - INFO: 订单页面地址保存按钮等待结束时间2022--04--12 11:16:04:
+2022-04-12 11:16:04,560 - [basepage.py--&gt;line:86] - INFO: 订单页面保存地址二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:16:04,560 - [basepage.py--&gt;line:37] - INFO: 订单页面保存地址二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:16:04,561 - [basepage.py--&gt;line:40] - INFO: 订单页面保存地址二次确认等待开始时间2022--04--12 11:16:04:
+2022-04-12 11:16:05,149 - [basepage.py--&gt;line:49] - INFO: 订单页面保存地址二次确认等待结束时间2022--04--12 11:16:05:
+2022-04-12 11:16:05,299 - [basepage.py--&gt;line:37] - INFO: 等待优惠券兑换框出现等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:16:05,299 - [basepage.py--&gt;line:40] - INFO: 等待优惠券兑换框出现等待开始时间2022--04--12 11:16:05:
+2022-04-12 11:16:06,104 - [basepage.py--&gt;line:49] - INFO: 等待优惠券兑换框出现等待结束时间2022--04--12 11:16:06:
+2022-04-12 11:16:07,110 - [basepage.py--&gt;line:86] - INFO: 订单页面点击优惠券兑换点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:16:07,111 - [basepage.py--&gt;line:37] - INFO: 订单页面点击优惠券兑换等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:16:07,111 - [basepage.py--&gt;line:40] - INFO: 订单页面点击优惠券兑换等待开始时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,127 - [basepage.py--&gt;line:49] - INFO: 订单页面点击优惠券兑换等待结束时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,317 - [basepage.py--&gt;line:105] - INFO: 订单页面优惠券兑换码输入框对(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)输入testyjm11
+2022-04-12 11:16:07,318 - [basepage.py--&gt;line:37] - INFO: 订单页面优惠券兑换码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)元素
+2022-04-12 11:16:07,318 - [basepage.py--&gt;line:40] - INFO: 订单页面优惠券兑换码输入框等待开始时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,339 - [basepage.py--&gt;line:49] - INFO: 订单页面优惠券兑换码输入框等待结束时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,489 - [basepage.py--&gt;line:86] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+2022-04-12 11:16:07,489 - [basepage.py--&gt;line:37] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+2022-04-12 11:16:07,490 - [basepage.py--&gt;line:40] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待开始时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,513 - [basepage.py--&gt;line:49] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待结束时间2022--04--12 11:16:07:
+2022-04-12 11:16:07,629 - [basepage.py--&gt;line:86] - INFO: 订单页面优惠券兑换成功后确定按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+2022-04-12 11:16:07,629 - [basepage.py--&gt;line:37] - INFO: 订单页面优惠券兑换成功后确定按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+2022-04-12 11:16:07,630 - [basepage.py--&gt;line:40] - INFO: 订单页面优惠券兑换成功后确定按钮等待开始时间2022--04--12 11:16:07:
+2022-04-12 11:16:09,282 - [basepage.py--&gt;line:49] - INFO: 订单页面优惠券兑换成功后确定按钮等待结束时间2022--04--12 11:16:09:
+2022-04-12 11:16:09,431 - [basepage.py--&gt;line:86] - INFO: 订单页面选择对应的优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+2022-04-12 11:16:09,432 - [basepage.py--&gt;line:37] - INFO: 订单页面选择对应的优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+2022-04-12 11:16:09,432 - [basepage.py--&gt;line:40] - INFO: 订单页面选择对应的优惠券等待开始时间2022--04--12 11:16:09:
+2022-04-12 11:16:09,492 - [basepage.py--&gt;line:49] - INFO: 订单页面选择对应的优惠券等待结束时间2022--04--12 11:16:09:
+2022-04-12 11:16:12,660 - [basepage.py--&gt;line:86] - INFO: 提交订单页面选择adyen支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;Credit/Debit Card&quot;]&#x27;)元素
+2022-04-12 11:16:12,661 - [basepage.py--&gt;line:37] - INFO: 提交订单页面选择adyen支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;Credit/Debit Card&quot;]&#x27;)元素
+2022-04-12 11:16:12,661 - [basepage.py--&gt;line:40] - INFO: 提交订单页面选择adyen支付等待开始时间2022--04--12 11:16:12:
+2022-04-12 11:16:12,683 - [basepage.py--&gt;line:49] - INFO: 提交订单页面选择adyen支付等待结束时间2022--04--12 11:16:12:
+2022-04-12 11:16:12,796 - [basepage.py--&gt;line:241] - INFO: 提交订单页面向上滑动页面滑动
+2022-04-12 11:16:14,139 - [basepage.py--&gt;line:241] - INFO: 提交订单页面向下滑动页面滑动
+2022-04-12 11:16:15,459 - [basepage.py--&gt;line:105] - INFO: 订单页面卡号输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedCardNumber&quot;]&#x27;)输入4336 6800 0926 7119
+2022-04-12 11:16:15,460 - [basepage.py--&gt;line:37] - INFO: 订单页面卡号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedCardNumber&quot;]&#x27;)元素
+2022-04-12 11:16:15,460 - [basepage.py--&gt;line:40] - INFO: 订单页面卡号输入等待开始时间2022--04--12 11:16:15:
+2022-04-12 11:16:15,480 - [basepage.py--&gt;line:49] - INFO: 订单页面卡号输入等待结束时间2022--04--12 11:16:15:
+2022-04-12 11:16:18,714 - [basepage.py--&gt;line:105] - INFO: 订单页面姓名输入对(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;卡名&quot;]/preceding-sibling::input&#x27;)输入test
+2022-04-12 11:16:18,714 - [basepage.py--&gt;line:37] - INFO: 订单页面姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;卡名&quot;]/preceding-sibling::input&#x27;)元素
+2022-04-12 11:16:18,715 - [basepage.py--&gt;line:40] - INFO: 订单页面姓名输入等待开始时间2022--04--12 11:16:18:
+2022-04-12 11:16:18,738 - [basepage.py--&gt;line:49] - INFO: 订单页面姓名输入等待结束时间2022--04--12 11:16:18:
+2022-04-12 11:16:21,879 - [basepage.py--&gt;line:105] - INFO: 订单页面日期输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedExpiryDate&quot;]&#x27;)输入10/22
+2022-04-12 11:16:21,888 - [basepage.py--&gt;line:37] - INFO: 订单页面日期输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedExpiryDate&quot;]&#x27;)元素
+2022-04-12 11:16:21,888 - [basepage.py--&gt;line:40] - INFO: 订单页面日期输入框等待开始时间2022--04--12 11:16:21:
+2022-04-12 11:16:21,913 - [basepage.py--&gt;line:49] - INFO: 订单页面日期输入框等待结束时间2022--04--12 11:16:21:
+2022-04-12 11:16:25,069 - [basepage.py--&gt;line:105] - INFO: 订单页面安全码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedSecurityCode&quot;]&#x27;)输入766
+2022-04-12 11:16:25,069 - [basepage.py--&gt;line:37] - INFO: 订单页面安全码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedSecurityCode&quot;]&#x27;)元素
+2022-04-12 11:16:25,069 - [basepage.py--&gt;line:40] - INFO: 订单页面安全码输入框等待开始时间2022--04--12 11:16:25:
+2022-04-12 11:16:25,090 - [basepage.py--&gt;line:49] - INFO: 订单页面安全码输入框等待结束时间2022--04--12 11:16:25:
+2022-04-12 11:16:25,158 - [basepage.py--&gt;line:86] - INFO: 订单页面提交订单按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+2022-04-12 11:16:25,159 - [basepage.py--&gt;line:37] - INFO: 订单页面提交订单按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+2022-04-12 11:16:25,159 - [basepage.py--&gt;line:40] - INFO: 订单页面提交订单按钮等待开始时间2022--04--12 11:16:25:
+2022-04-12 11:16:25,203 - [basepage.py--&gt;line:49] - INFO: 订单页面提交订单按钮等待结束时间2022--04--12 11:16:25:
+2022-04-12 11:16:40,985 - [order_page.py--&gt;line:125] - INFO: 2022-04-12 11:08:11 站点cloudmall美国地区未登录用户adyen支付的订单号:[&#x27;21010278&#x27;]
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:15:53:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:15:55:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:15:55:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:15:56:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:15:56:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:15:58:
+INFO     cases:basepage.py:86 购物车列表选择测品去结算点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表选择测品去结算等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表选择测品去结算等待开始时间2022--04--12 11:15:58:
+INFO     cases:basepage.py:49 购物车列表选择测品去结算等待结束时间2022--04--12 11:15:58:
+INFO     cases:basepage.py:105 订单页面添加地址姓名输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)输入test
+INFO     cases:basepage.py:37 订单页面添加地址姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址姓名输入等待开始时间2022--04--12 11:15:58:
+INFO     cases:basepage.py:49 订单页面添加地址姓名输入等待结束时间2022--04--12 11:16:01:
+INFO     cases:basepage.py:105 订单页面添加地址手机号输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)输入123456
+INFO     cases:basepage.py:37 订单页面添加地址手机号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址手机号输入等待开始时间2022--04--12 11:16:01:
+INFO     cases:basepage.py:49 订单页面添加地址手机号输入等待结束时间2022--04--12 11:16:01:
+INFO     cases:basepage.py:105 订单页面添加地址街道输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)输入Orr
+INFO     cases:basepage.py:37 订单页面添加地址街道输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址街道输入等待开始时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:49 订单页面添加地址街道输入等待结束时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:105 订单页面添加地址城市输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)输入Dall
+INFO     cases:basepage.py:37 订单页面添加地址城市输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址城市输入等待开始时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:49 订单页面添加地址城市输入等待结束时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:86 订单页面添加地址省选择点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;provinceSelect&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面添加地址省选择等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;provinceSelect&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址省选择等待开始时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:49 订单页面添加地址省选择等待结束时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:86 订单页面添加地址选择指定的省点击(&#x27;xpath&#x27;, &#x27;//*[@title =&quot;Arizona&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面添加地址选择指定的省等待(&#x27;xpath&#x27;, &#x27;//*[@title =&quot;Arizona&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址选择指定的省等待开始时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:49 订单页面添加地址选择指定的省等待结束时间2022--04--12 11:16:02:
+INFO     cases:basepage.py:105 订单页面添加地址输入邮编对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)输入11111
+INFO     cases:basepage.py:37 订单页面添加地址输入邮编等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址输入邮编等待开始时间2022--04--12 11:16:03:
+INFO     cases:basepage.py:49 订单页面添加地址输入邮编等待结束时间2022--04--12 11:16:03:
+INFO     cases:basepage.py:105 订单页面添加地址输入邮箱对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)输入jiaming.yang@cloudmall.ai
+INFO     cases:basepage.py:37 订单页面添加地址输入邮箱等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址输入邮箱等待开始时间2022--04--12 11:16:03:
+INFO     cases:basepage.py:49 订单页面添加地址输入邮箱等待结束时间2022--04--12 11:16:03:
+INFO     cases:basepage.py:86 订单页面地址保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面地址保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面地址保存按钮等待开始时间2022--04--12 11:16:04:
+INFO     cases:basepage.py:49 订单页面地址保存按钮等待结束时间2022--04--12 11:16:04:
+INFO     cases:basepage.py:86 订单页面保存地址二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面保存地址二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面保存地址二次确认等待开始时间2022--04--12 11:16:04:
+INFO     cases:basepage.py:49 订单页面保存地址二次确认等待结束时间2022--04--12 11:16:05:
+INFO     cases:basepage.py:37 等待优惠券兑换框出现等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 等待优惠券兑换框出现等待开始时间2022--04--12 11:16:05:
+INFO     cases:basepage.py:49 等待优惠券兑换框出现等待结束时间2022--04--12 11:16:06:
+INFO     cases:basepage.py:86 订单页面点击优惠券兑换点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面点击优惠券兑换等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面点击优惠券兑换等待开始时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:49 订单页面点击优惠券兑换等待结束时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:105 订单页面优惠券兑换码输入框对(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)输入testyjm11
+INFO     cases:basepage.py:37 订单页面优惠券兑换码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面优惠券兑换码输入框等待开始时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:49 订单页面优惠券兑换码输入框等待结束时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:86 订单页面输入优惠券兑换码后点击兑换按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面输入优惠券兑换码后点击兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面输入优惠券兑换码后点击兑换按钮等待开始时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:49 订单页面输入优惠券兑换码后点击兑换按钮等待结束时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:86 订单页面优惠券兑换成功后确定按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面优惠券兑换成功后确定按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面优惠券兑换成功后确定按钮等待开始时间2022--04--12 11:16:07:
+INFO     cases:basepage.py:49 订单页面优惠券兑换成功后确定按钮等待结束时间2022--04--12 11:16:09:
+INFO     cases:basepage.py:86 订单页面选择对应的优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+INFO     cases:basepage.py:37 订单页面选择对应的优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+INFO     cases:basepage.py:40 订单页面选择对应的优惠券等待开始时间2022--04--12 11:16:09:
+INFO     cases:basepage.py:49 订单页面选择对应的优惠券等待结束时间2022--04--12 11:16:09:
+INFO     cases:basepage.py:86 提交订单页面选择adyen支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;Credit/Debit Card&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 提交订单页面选择adyen支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;Credit/Debit Card&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 提交订单页面选择adyen支付等待开始时间2022--04--12 11:16:12:
+INFO     cases:basepage.py:49 提交订单页面选择adyen支付等待结束时间2022--04--12 11:16:12:
+INFO     cases:basepage.py:241 提交订单页面向上滑动页面滑动
+INFO     cases:basepage.py:241 提交订单页面向下滑动页面滑动
+INFO     cases:basepage.py:105 订单页面卡号输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedCardNumber&quot;]&#x27;)输入4336 6800 0926 7119
+INFO     cases:basepage.py:37 订单页面卡号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedCardNumber&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面卡号输入等待开始时间2022--04--12 11:16:15:
+INFO     cases:basepage.py:49 订单页面卡号输入等待结束时间2022--04--12 11:16:15:
+INFO     cases:basepage.py:105 订单页面姓名输入对(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;卡名&quot;]/preceding-sibling::input&#x27;)输入test
+INFO     cases:basepage.py:37 订单页面姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;卡名&quot;]/preceding-sibling::input&#x27;)元素
+INFO     cases:basepage.py:40 订单页面姓名输入等待开始时间2022--04--12 11:16:18:
+INFO     cases:basepage.py:49 订单页面姓名输入等待结束时间2022--04--12 11:16:18:
+INFO     cases:basepage.py:105 订单页面日期输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedExpiryDate&quot;]&#x27;)输入10/22
+INFO     cases:basepage.py:37 订单页面日期输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedExpiryDate&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面日期输入框等待开始时间2022--04--12 11:16:21:
+INFO     cases:basepage.py:49 订单页面日期输入框等待结束时间2022--04--12 11:16:21:
+INFO     cases:basepage.py:105 订单页面安全码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedSecurityCode&quot;]&#x27;)输入766
+INFO     cases:basepage.py:37 订单页面安全码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;encryptedSecurityCode&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面安全码输入框等待开始时间2022--04--12 11:16:25:
+INFO     cases:basepage.py:49 订单页面安全码输入框等待结束时间2022--04--12 11:16:25:
+INFO     cases:basepage.py:86 订单页面提交订单按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面提交订单按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面提交订单按钮等待开始时间2022--04--12 11:16:25:
+INFO     cases:basepage.py:49 订单页面提交订单按钮等待结束时间2022--04--12 11:16:25:
+INFO     cases:order_page.py:125 2022-04-12 11:08:11 站点cloudmall美国地区未登录用户adyen支付的订单号:[&#x27;21010278&#x27;]<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_order.py::TestOrder::test_gb_user_paypal_order</td>
+          <td class="col-duration">102.11</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-04-12 11:16:51,091 - [basepage.py--&gt;line:86] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:16:51,094 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:16:51,094 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--04--12 11:16:51:
+2022-04-12 11:16:58,049 - [basepage.py--&gt;line:49] - INFO: 首页左上角菜单按钮等待结束时间2022--04--12 11:16:58:
+2022-04-12 11:17:00,590 - [basepage.py--&gt;line:86] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:17:00,591 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:17:00,591 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:17:00:
+2022-04-12 11:17:00,615 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:17:00:
+2022-04-12 11:17:00,874 - [basepage.py--&gt;line:124] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United Kingdom
+2022-04-12 11:17:00,874 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-04-12 11:17:00,874 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--04--12 11:17:00:
+2022-04-12 11:17:00,887 - [basepage.py--&gt;line:49] - INFO: 国家列表等待结束时间2022--04--12 11:17:00:
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:86 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--04--12 11:16:51:
+INFO     cases:basepage.py:49 首页左上角菜单按钮等待结束时间2022--04--12 11:16:58:
+INFO     cases:basepage.py:86 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:17:00:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:17:00:
+INFO     cases:basepage.py:124 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United Kingdom
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--04--12 11:17:00:
+INFO     cases:basepage.py:49 国家列表等待结束时间2022--04--12 11:17:00:<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-04-12 11:17:04,307 - [basepage.py--&gt;line:37] - INFO: 首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:17:04,308 - [basepage.py--&gt;line:40] - INFO: 首页菜单按钮等待开始时间2022--04--12 11:17:04:
+2022-04-12 11:17:04,334 - [basepage.py--&gt;line:49] - INFO: 首页菜单按钮等待结束时间2022--04--12 11:17:04:
+2022-04-12 11:17:04,334 - [basepage.py--&gt;line:86] - INFO: 点击首页菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:17:04,335 - [basepage.py--&gt;line:37] - INFO: 点击首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-04-12 11:17:04,335 - [basepage.py--&gt;line:40] - INFO: 点击首页菜单按钮等待开始时间2022--04--12 11:17:04:
+2022-04-12 11:17:04,350 - [basepage.py--&gt;line:49] - INFO: 点击首页菜单按钮等待结束时间2022--04--12 11:17:04:
+2022-04-12 11:17:04,449 - [basepage.py--&gt;line:86] - INFO: 点击首页登录注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+2022-04-12 11:17:04,450 - [basepage.py--&gt;line:37] - INFO: 点击首页登录注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+2022-04-12 11:17:04,450 - [basepage.py--&gt;line:40] - INFO: 点击首页登录注册按钮等待开始时间2022--04--12 11:17:04:
+2022-04-12 11:17:04,995 - [basepage.py--&gt;line:49] - INFO: 点击首页登录注册按钮等待结束时间2022--04--12 11:17:04:
+2022-04-12 11:17:06,155 - [basepage.py--&gt;line:86] - INFO: 选择邮箱注册点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+2022-04-12 11:17:06,157 - [basepage.py--&gt;line:37] - INFO: 选择邮箱注册等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+2022-04-12 11:17:06,157 - [basepage.py--&gt;line:40] - INFO: 选择邮箱注册等待开始时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,201 - [basepage.py--&gt;line:49] - INFO: 选择邮箱注册等待结束时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,411 - [basepage.py--&gt;line:105] - INFO: 邮箱注册输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)输入459468@qq.com
+2022-04-12 11:17:06,412 - [basepage.py--&gt;line:37] - INFO: 邮箱注册输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)元素
+2022-04-12 11:17:06,412 - [basepage.py--&gt;line:40] - INFO: 邮箱注册输入框等待开始时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,455 - [basepage.py--&gt;line:49] - INFO: 邮箱注册输入框等待结束时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,673 - [basepage.py--&gt;line:86] - INFO: 输入邮箱后的注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:17:06,674 - [basepage.py--&gt;line:37] - INFO: 输入邮箱后的注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:17:06,674 - [basepage.py--&gt;line:40] - INFO: 输入邮箱后的注册按钮等待开始时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,699 - [basepage.py--&gt;line:49] - INFO: 输入邮箱后的注册按钮等待结束时间2022--04--12 11:17:06:
+2022-04-12 11:17:06,828 - [basepage.py--&gt;line:105] - INFO: 邮箱注册姓名邮箱注册密码输入框输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)输入test
+2022-04-12 11:17:06,829 - [basepage.py--&gt;line:37] - INFO: 邮箱注册姓名邮箱注册密码输入框输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)元素
+2022-04-12 11:17:06,829 - [basepage.py--&gt;line:40] - INFO: 邮箱注册姓名邮箱注册密码输入框输入框等待开始时间2022--04--12 11:17:06:
+2022-04-12 11:17:07,372 - [basepage.py--&gt;line:49] - INFO: 邮箱注册姓名邮箱注册密码输入框输入框等待结束时间2022--04--12 11:17:07:
+2022-04-12 11:17:07,418 - [basepage.py--&gt;line:105] - INFO: 邮箱注册密码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)输入123456
+2022-04-12 11:17:07,437 - [basepage.py--&gt;line:37] - INFO: 邮箱注册密码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)元素
+2022-04-12 11:17:07,438 - [basepage.py--&gt;line:40] - INFO: 邮箱注册密码输入框等待开始时间2022--04--12 11:17:07:
+2022-04-12 11:17:07,463 - [basepage.py--&gt;line:49] - INFO: 邮箱注册密码输入框等待结束时间2022--04--12 11:17:07:
+2022-04-12 11:17:07,536 - [basepage.py--&gt;line:86] - INFO: 邮箱注册输入完所填的信息后的保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:17:07,536 - [basepage.py--&gt;line:37] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+2022-04-12 11:17:07,536 - [basepage.py--&gt;line:40] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待开始时间2022--04--12 11:17:07:
+2022-04-12 11:17:07,562 - [basepage.py--&gt;line:49] - INFO: 邮箱注册输入完所填的信息后的保存按钮等待结束时间2022--04--12 11:17:07:
+2022-04-12 11:17:15,949 - [basepage.py--&gt;line:86] - INFO: 首页关闭新人优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;恭喜你&quot;]&#x27;)元素
+2022-04-12 11:17:15,949 - [basepage.py--&gt;line:37] - INFO: 首页关闭新人优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;恭喜你&quot;]&#x27;)元素
+2022-04-12 11:17:15,949 - [basepage.py--&gt;line:40] - INFO: 首页关闭新人优惠券等待开始时间2022--04--12 11:17:15:
+2022-04-12 11:17:15,963 - [basepage.py--&gt;line:49] - INFO: 首页关闭新人优惠券等待结束时间2022--04--12 11:17:15:
+2022-04-12 11:17:21,609 - [basepage.py--&gt;line:86] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:17:21,610 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-04-12 11:17:21,611 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--04--12 11:17:21:
+2022-04-12 11:17:24,003 - [basepage.py--&gt;line:49] - INFO: 商品详情页点击加购按钮等待结束时间2022--04--12 11:17:24:
+2022-04-12 11:17:24,258 - [basepage.py--&gt;line:86] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:17:24,258 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-04-12 11:17:24,259 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--04--12 11:17:24:
+2022-04-12 11:17:24,845 - [basepage.py--&gt;line:49] - INFO: 选择商品后点击确认按钮等待结束时间2022--04--12 11:17:24:
+2022-04-12 11:17:24,997 - [basepage.py--&gt;line:86] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:17:24,997 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-04-12 11:17:24,997 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--04--12 11:17:24:
+2022-04-12 11:17:26,669 - [basepage.py--&gt;line:49] - INFO: 商品详情点击购物车按钮等待结束时间2022--04--12 11:17:26:
+2022-04-12 11:17:26,840 - [basepage.py--&gt;line:86] - INFO: 购物车列表选择测品去结算点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+2022-04-12 11:17:26,840 - [basepage.py--&gt;line:37] - INFO: 购物车列表选择测品去结算等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+2022-04-12 11:17:26,840 - [basepage.py--&gt;line:40] - INFO: 购物车列表选择测品去结算等待开始时间2022--04--12 11:17:26:
+2022-04-12 11:17:27,381 - [basepage.py--&gt;line:49] - INFO: 购物车列表选择测品去结算等待结束时间2022--04--12 11:17:27:
+2022-04-12 11:17:27,547 - [basepage.py--&gt;line:86] - INFO: 点击姓名输入框点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+2022-04-12 11:17:27,548 - [basepage.py--&gt;line:37] - INFO: 点击姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+2022-04-12 11:17:27,548 - [basepage.py--&gt;line:40] - INFO: 点击姓名输入框等待开始时间2022--04--12 11:17:27:
+2022-04-12 11:17:31,220 - [basepage.py--&gt;line:49] - INFO: 点击姓名输入框等待结束时间2022--04--12 11:17:31:
+2022-04-12 11:17:31,486 - [basepage.py--&gt;line:86] - INFO: 清空姓名输入框点击(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+2022-04-12 11:17:31,487 - [basepage.py--&gt;line:37] - INFO: 清空姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+2022-04-12 11:17:31,487 - [basepage.py--&gt;line:40] - INFO: 清空姓名输入框等待开始时间2022--04--12 11:17:31:
+2022-04-12 11:17:32,090 - [basepage.py--&gt;line:49] - INFO: 清空姓名输入框等待结束时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,256 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址姓名输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)输入test
+2022-04-12 11:17:32,256 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+2022-04-12 11:17:32,256 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址姓名输入等待开始时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,431 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址姓名输入等待结束时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,494 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址手机号输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)输入123456
+2022-04-12 11:17:32,494 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址手机号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)元素
+2022-04-12 11:17:32,494 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址手机号输入等待开始时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,525 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址手机号输入等待结束时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,922 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址街道输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)输入Orr
+2022-04-12 11:17:32,923 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址街道输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)元素
+2022-04-12 11:17:32,923 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址街道输入等待开始时间2022--04--12 11:17:32:
+2022-04-12 11:17:32,956 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址街道输入等待结束时间2022--04--12 11:17:32:
+2022-04-12 11:17:33,095 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址城市输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)输入Dall
+2022-04-12 11:17:33,095 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址城市输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)元素
+2022-04-12 11:17:33,095 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址城市输入等待开始时间2022--04--12 11:17:33:
+2022-04-12 11:17:33,138 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址城市输入等待结束时间2022--04--12 11:17:33:
+2022-04-12 11:17:33,244 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址选择指定的省对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;province&quot;]&#x27;)输入sdadsad
+2022-04-12 11:17:33,245 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址选择指定的省等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;province&quot;]&#x27;)元素
+2022-04-12 11:17:33,245 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址选择指定的省等待开始时间2022--04--12 11:17:33:
+2022-04-12 11:17:33,399 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址选择指定的省等待结束时间2022--04--12 11:17:33:
+2022-04-12 11:17:33,847 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址输入邮编对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)输入A00 0AA
+2022-04-12 11:17:33,848 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址输入邮编等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)元素
+2022-04-12 11:17:33,848 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址输入邮编等待开始时间2022--04--12 11:17:33:
+2022-04-12 11:17:33,894 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址输入邮编等待结束时间2022--04--12 11:17:33:
+2022-04-12 11:17:34,032 - [basepage.py--&gt;line:86] - INFO: 点击邮箱输入框点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+2022-04-12 11:17:34,032 - [basepage.py--&gt;line:37] - INFO: 点击邮箱输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+2022-04-12 11:17:34,033 - [basepage.py--&gt;line:40] - INFO: 点击邮箱输入框等待开始时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,081 - [basepage.py--&gt;line:49] - INFO: 点击邮箱输入框等待结束时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,255 - [basepage.py--&gt;line:86] - INFO: 清空邮箱输入框点击(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+2022-04-12 11:17:34,256 - [basepage.py--&gt;line:37] - INFO: 清空邮箱输入框等待(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+2022-04-12 11:17:34,256 - [basepage.py--&gt;line:40] - INFO: 清空邮箱输入框等待开始时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,388 - [basepage.py--&gt;line:49] - INFO: 清空邮箱输入框等待结束时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,575 - [basepage.py--&gt;line:105] - INFO: 订单页面添加地址输入邮箱对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)输入jiaming.yang@cloudmall.ai
+2022-04-12 11:17:34,575 - [basepage.py--&gt;line:37] - INFO: 订单页面添加地址输入邮箱等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+2022-04-12 11:17:34,575 - [basepage.py--&gt;line:40] - INFO: 订单页面添加地址输入邮箱等待开始时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,592 - [basepage.py--&gt;line:49] - INFO: 订单页面添加地址输入邮箱等待结束时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,798 - [basepage.py--&gt;line:86] - INFO: 订单页面地址保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+2022-04-12 11:17:34,798 - [basepage.py--&gt;line:37] - INFO: 订单页面地址保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+2022-04-12 11:17:34,799 - [basepage.py--&gt;line:40] - INFO: 订单页面地址保存按钮等待开始时间2022--04--12 11:17:34:
+2022-04-12 11:17:34,850 - [basepage.py--&gt;line:49] - INFO: 订单页面地址保存按钮等待结束时间2022--04--12 11:17:34:
+2022-04-12 11:17:35,005 - [basepage.py--&gt;line:86] - INFO: 订单页面保存地址二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:17:35,006 - [basepage.py--&gt;line:37] - INFO: 订单页面保存地址二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-04-12 11:17:35,006 - [basepage.py--&gt;line:40] - INFO: 订单页面保存地址二次确认等待开始时间2022--04--12 11:17:35:
+2022-04-12 11:17:35,564 - [basepage.py--&gt;line:49] - INFO: 订单页面保存地址二次确认等待结束时间2022--04--12 11:17:35:
+2022-04-12 11:17:35,668 - [basepage.py--&gt;line:37] - INFO: 等待订单页面点击优惠券兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:17:35,669 - [basepage.py--&gt;line:40] - INFO: 等待订单页面点击优惠券兑换按钮等待开始时间2022--04--12 11:17:35:
+2022-04-12 11:17:36,740 - [basepage.py--&gt;line:49] - INFO: 等待订单页面点击优惠券兑换按钮等待结束时间2022--04--12 11:17:36:
+2022-04-12 11:17:39,745 - [basepage.py--&gt;line:86] - INFO: 订单页面点击优惠券兑换点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:17:39,746 - [basepage.py--&gt;line:37] - INFO: 订单页面点击优惠券兑换等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+2022-04-12 11:17:39,747 - [basepage.py--&gt;line:40] - INFO: 订单页面点击优惠券兑换等待开始时间2022--04--12 11:17:39:
+2022-04-12 11:17:39,775 - [basepage.py--&gt;line:49] - INFO: 订单页面点击优惠券兑换等待结束时间2022--04--12 11:17:39:
+2022-04-12 11:17:39,932 - [basepage.py--&gt;line:105] - INFO: 订单页面优惠券兑换码输入框对(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)输入testyjm15
+2022-04-12 11:17:39,932 - [basepage.py--&gt;line:37] - INFO: 订单页面优惠券兑换码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)元素
+2022-04-12 11:17:39,932 - [basepage.py--&gt;line:40] - INFO: 订单页面优惠券兑换码输入框等待开始时间2022--04--12 11:17:39:
+2022-04-12 11:17:39,977 - [basepage.py--&gt;line:49] - INFO: 订单页面优惠券兑换码输入框等待结束时间2022--04--12 11:17:39:
+2022-04-12 11:17:40,122 - [basepage.py--&gt;line:86] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+2022-04-12 11:17:40,122 - [basepage.py--&gt;line:37] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+2022-04-12 11:17:40,123 - [basepage.py--&gt;line:40] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待开始时间2022--04--12 11:17:40:
+2022-04-12 11:17:40,147 - [basepage.py--&gt;line:49] - INFO: 订单页面输入优惠券兑换码后点击兑换按钮等待结束时间2022--04--12 11:17:40:
+2022-04-12 11:17:40,269 - [basepage.py--&gt;line:86] - INFO: 订单页面优惠券兑换成功后确定按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+2022-04-12 11:17:40,269 - [basepage.py--&gt;line:37] - INFO: 订单页面优惠券兑换成功后确定按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+2022-04-12 11:17:40,269 - [basepage.py--&gt;line:40] - INFO: 订单页面优惠券兑换成功后确定按钮等待开始时间2022--04--12 11:17:40:
+2022-04-12 11:17:41,843 - [basepage.py--&gt;line:49] - INFO: 订单页面优惠券兑换成功后确定按钮等待结束时间2022--04--12 11:17:41:
+2022-04-12 11:17:41,960 - [basepage.py--&gt;line:86] - INFO: 订单页面选择对应的优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+2022-04-12 11:17:41,960 - [basepage.py--&gt;line:37] - INFO: 订单页面选择对应的优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+2022-04-12 11:17:41,961 - [basepage.py--&gt;line:40] - INFO: 订单页面选择对应的优惠券等待开始时间2022--04--12 11:17:41:
+2022-04-12 11:17:41,984 - [basepage.py--&gt;line:49] - INFO: 订单页面选择对应的优惠券等待结束时间2022--04--12 11:17:41:
+2022-04-12 11:17:44,083 - [basepage.py--&gt;line:241] - INFO: 提交订单页面向上滑动页面滑动
+2022-04-12 11:17:45,410 - [basepage.py--&gt;line:241] - INFO: 提交订单页面向下滑动页面滑动
+2022-04-12 11:17:46,722 - [basepage.py--&gt;line:86] - INFO: 订单页面选择paypal支付方式支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;PayPal&quot;]&#x27;)元素
+2022-04-12 11:17:46,722 - [basepage.py--&gt;line:37] - INFO: 订单页面选择paypal支付方式支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;PayPal&quot;]&#x27;)元素
+2022-04-12 11:17:46,722 - [basepage.py--&gt;line:40] - INFO: 订单页面选择paypal支付方式支付等待开始时间2022--04--12 11:17:46:
+2022-04-12 11:17:46,747 - [basepage.py--&gt;line:49] - INFO: 订单页面选择paypal支付方式支付等待结束时间2022--04--12 11:17:46:
+2022-04-12 11:17:46,878 - [basepage.py--&gt;line:86] - INFO: paypal确定支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+2022-04-12 11:17:46,878 - [basepage.py--&gt;line:37] - INFO: paypal确定支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+2022-04-12 11:17:46,878 - [basepage.py--&gt;line:40] - INFO: paypal确定支付等待开始时间2022--04--12 11:17:46:
+2022-04-12 11:17:46,911 - [basepage.py--&gt;line:49] - INFO: paypal确定支付等待结束时间2022--04--12 11:17:46:
+2022-04-12 11:17:47,060 - [basepage.py--&gt;line:37] - INFO: 等待paypal登录页面账号输入框出现等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)元素
+2022-04-12 11:17:47,062 - [basepage.py--&gt;line:40] - INFO: 等待paypal登录页面账号输入框出现等待开始时间2022--04--12 11:17:47:
+2022-04-12 11:17:53,939 - [basepage.py--&gt;line:49] - INFO: 等待paypal登录页面账号输入框出现等待结束时间2022--04--12 11:17:53:
+2022-04-12 11:17:53,941 - [basepage.py--&gt;line:105] - INFO: paypal登录页面账号输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)输入sisi.zeng@imaygou.com
+2022-04-12 11:17:53,941 - [basepage.py--&gt;line:37] - INFO: paypal登录页面账号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)元素
+2022-04-12 11:17:53,941 - [basepage.py--&gt;line:40] - INFO: paypal登录页面账号输入等待开始时间2022--04--12 11:17:53:
+2022-04-12 11:17:53,959 - [basepage.py--&gt;line:49] - INFO: paypal登录页面账号输入等待结束时间2022--04--12 11:17:53:
+2022-04-12 11:17:54,335 - [basepage.py--&gt;line:86] - INFO: paypal输入账号后点击下一步按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnNext&quot;]&#x27;)元素
+2022-04-12 11:17:54,335 - [basepage.py--&gt;line:37] - INFO: paypal输入账号后点击下一步按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnNext&quot;]&#x27;)元素
+2022-04-12 11:17:54,335 - [basepage.py--&gt;line:40] - INFO: paypal输入账号后点击下一步按钮等待开始时间2022--04--12 11:17:54:
+2022-04-12 11:17:54,381 - [basepage.py--&gt;line:49] - INFO: paypal输入账号后点击下一步按钮等待结束时间2022--04--12 11:17:54:
+2022-04-12 11:17:54,821 - [basepage.py--&gt;line:105] - INFO: paypal登录页面密码输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;password&quot;]&#x27;)输入Cloudmall0311
+2022-04-12 11:17:54,821 - [basepage.py--&gt;line:37] - INFO: paypal登录页面密码输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;password&quot;]&#x27;)元素
+2022-04-12 11:17:54,821 - [basepage.py--&gt;line:40] - INFO: paypal登录页面密码输入等待开始时间2022--04--12 11:17:54:
+2022-04-12 11:17:55,894 - [basepage.py--&gt;line:49] - INFO: paypal登录页面密码输入等待结束时间2022--04--12 11:17:55:
+2022-04-12 11:17:56,120 - [basepage.py--&gt;line:86] - INFO: paypal登录页面登录按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnLogin&quot;]&#x27;)元素
+2022-04-12 11:17:56,121 - [basepage.py--&gt;line:37] - INFO: paypal登录页面登录按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnLogin&quot;]&#x27;)元素
+2022-04-12 11:17:56,121 - [basepage.py--&gt;line:40] - INFO: paypal登录页面登录按钮等待开始时间2022--04--12 11:17:56:
+2022-04-12 11:17:56,224 - [basepage.py--&gt;line:49] - INFO: paypal登录页面登录按钮等待结束时间2022--04--12 11:17:56:
+2022-04-12 11:18:03,258 - [basepage.py--&gt;line:241] - INFO: paypal支付页面向下滑动页面滑动
+2022-04-12 11:18:04,669 - [basepage.py--&gt;line:37] - INFO: paypal支付页面等待支付按钮出现等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+2022-04-12 11:18:04,670 - [basepage.py--&gt;line:40] - INFO: paypal支付页面等待支付按钮出现等待开始时间2022--04--12 11:18:04:
+2022-04-12 11:18:04,692 - [basepage.py--&gt;line:49] - INFO: paypal支付页面等待支付按钮出现等待结束时间2022--04--12 11:18:04:
+2022-04-12 11:18:04,693 - [basepage.py--&gt;line:86] - INFO: 点击订单页面提交订单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+2022-04-12 11:18:04,693 - [basepage.py--&gt;line:37] - INFO: 点击订单页面提交订单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+2022-04-12 11:18:04,693 - [basepage.py--&gt;line:40] - INFO: 点击订单页面提交订单按钮等待开始时间2022--04--12 11:18:04:
+2022-04-12 11:18:04,705 - [basepage.py--&gt;line:49] - INFO: 点击订单页面提交订单按钮等待结束时间2022--04--12 11:18:04:
+2022-04-12 11:18:20,640 - [basepage.py--&gt;line:37] - INFO: paypal支付后等待支付成功文案出现等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;支付成功&quot;]&#x27;)元素
+2022-04-12 11:18:20,649 - [basepage.py--&gt;line:40] - INFO: paypal支付后等待支付成功文案出现等待开始时间2022--04--12 11:18:20:
+2022-04-12 11:18:23,022 - [basepage.py--&gt;line:49] - INFO: paypal支付后等待支付成功文案出现等待结束时间2022--04--12 11:18:23:
+2022-04-12 11:18:23,037 - [order_page.py--&gt;line:333] - INFO: 2022-04-12 11:08:11 站点cloudmall英国地区已登录用户paypal支付的订单号:https://www.cloudmall.ai/GB/zh-Hans/guestcheckout/success/21010282?method=paypal&amp;PayerID=6R3CK6TPPYM62&amp;st=Authorized&amp;tx=3R089379B5698113P&amp;cc=GBP&amp;amt=0.29&amp;cm=%7B%22order_id%22%3A%2221010282%22%2C%22payment_id%22%3A%226254ef5ca9456a0001315949%22%7D&amp;payer_email=sisi.zeng%40imaygou.com&amp;payer_id=6R3CK6TPPYM62&amp;payer_status=VERIFIED&amp;first_name=%E6%80%9D%E6%80%9D&amp;last_name=%E6%9B%BE&amp;address_name=hello%20world&amp;address_street=1221%20Pershore%20Road&amp;address_city=Birmingham&amp;address_state=Berkshire&amp;address_country_code=GB&amp;address_zip=B30%202YT&amp;residence_country=GB&amp;txn_id=3R089379B5698113P&amp;mc_currency=GBP&amp;mc_gross=0.29&amp;protection_eligibility=ELIGIBLE&amp;payment_gross=0.29&amp;payment_status=Authorized&amp;pending_reason=authorization&amp;payment_type=instant&amp;handling_amount=0.00&amp;shipping=0.00&amp;item_name=CloudMall%2021010282&amp;quantity=1&amp;txn_type=web_accept&amp;payment_date=2022-04-12T03%3A17%3A49Z&amp;receiver_id=YR2X68TXA9MPU&amp;notify_version=UNVERSIONED&amp;custom=%7B%22order_id%22%3A%2221010282%22%2C%22payment_id%22%3A%226254ef5ca9456a0001315949%22%7D&amp;verify_sign=A91o5bSW2hVnhMKjFXvmXVMoY7SXARdUPiuanPHyZTFweHpaT04hw27G
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:37 首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 首页菜单按钮等待开始时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:49 首页菜单按钮等待结束时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:86 点击首页菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 点击首页菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:40 点击首页菜单按钮等待开始时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:49 点击首页菜单按钮等待结束时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:86 点击首页登录注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+INFO     cases:basepage.py:37 点击首页登录注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[1]/div[1]/div/p[1]&#x27;)元素
+INFO     cases:basepage.py:40 点击首页登录注册按钮等待开始时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:49 点击首页登录注册按钮等待结束时间2022--04--12 11:17:04:
+INFO     cases:basepage.py:86 选择邮箱注册点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+INFO     cases:basepage.py:37 选择邮箱注册等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/div[1]/form/ul/li[4]/button&#x27;)元素
+INFO     cases:basepage.py:40 选择邮箱注册等待开始时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:49 选择邮箱注册等待结束时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:105 邮箱注册输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)输入459468@qq.com
+INFO     cases:basepage.py:37 邮箱注册输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div/div[1]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册输入框等待开始时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:49 邮箱注册输入框等待结束时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:86 输入邮箱后的注册按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:37 输入邮箱后的注册按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:40 输入邮箱后的注册按钮等待开始时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:49 输入邮箱后的注册按钮等待结束时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:105 邮箱注册姓名邮箱注册密码输入框输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)输入test
+INFO     cases:basepage.py:37 邮箱注册姓名邮箱注册密码输入框输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[3]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册姓名邮箱注册密码输入框输入框等待开始时间2022--04--12 11:17:06:
+INFO     cases:basepage.py:49 邮箱注册姓名邮箱注册密码输入框输入框等待结束时间2022--04--12 11:17:07:
+INFO     cases:basepage.py:105 邮箱注册密码输入框对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)输入123456
+INFO     cases:basepage.py:37 邮箱注册密码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[2]/div[5]/div[1]/input&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册密码输入框等待开始时间2022--04--12 11:17:07:
+INFO     cases:basepage.py:49 邮箱注册密码输入框等待结束时间2022--04--12 11:17:07:
+INFO     cases:basepage.py:86 邮箱注册输入完所填的信息后的保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:37 邮箱注册输入完所填的信息后的保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;authui-modal&quot;]/div/form/div[3]/div/button[2]&#x27;)元素
+INFO     cases:basepage.py:40 邮箱注册输入完所填的信息后的保存按钮等待开始时间2022--04--12 11:17:07:
+INFO     cases:basepage.py:49 邮箱注册输入完所填的信息后的保存按钮等待结束时间2022--04--12 11:17:07:
+INFO     cases:basepage.py:86 首页关闭新人优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;恭喜你&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 首页关闭新人优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;恭喜你&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 首页关闭新人优惠券等待开始时间2022--04--12 11:17:15:
+INFO     cases:basepage.py:49 首页关闭新人优惠券等待结束时间2022--04--12 11:17:15:
+INFO     cases:basepage.py:86 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--04--12 11:17:21:
+INFO     cases:basepage.py:49 商品详情页点击加购按钮等待结束时间2022--04--12 11:17:24:
+INFO     cases:basepage.py:86 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--04--12 11:17:24:
+INFO     cases:basepage.py:49 选择商品后点击确认按钮等待结束时间2022--04--12 11:17:24:
+INFO     cases:basepage.py:86 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--04--12 11:17:24:
+INFO     cases:basepage.py:49 商品详情点击购物车按钮等待结束时间2022--04--12 11:17:26:
+INFO     cases:basepage.py:86 购物车列表选择测品去结算点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表选择测品去结算等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;去结算&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 购物车列表选择测品去结算等待开始时间2022--04--12 11:17:26:
+INFO     cases:basepage.py:49 购物车列表选择测品去结算等待结束时间2022--04--12 11:17:27:
+INFO     cases:basepage.py:86 点击姓名输入框点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 点击姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 点击姓名输入框等待开始时间2022--04--12 11:17:27:
+INFO     cases:basepage.py:49 点击姓名输入框等待结束时间2022--04--12 11:17:31:
+INFO     cases:basepage.py:86 清空姓名输入框点击(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 清空姓名输入框等待(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 清空姓名输入框等待开始时间2022--04--12 11:17:31:
+INFO     cases:basepage.py:49 清空姓名输入框等待结束时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:105 订单页面添加地址姓名输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)输入test
+INFO     cases:basepage.py:37 订单页面添加地址姓名输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;receiver&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址姓名输入等待开始时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:49 订单页面添加地址姓名输入等待结束时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:105 订单页面添加地址手机号输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)输入123456
+INFO     cases:basepage.py:37 订单页面添加地址手机号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;mobileNumber&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址手机号输入等待开始时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:49 订单页面添加地址手机号输入等待结束时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:105 订单页面添加地址街道输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)输入Orr
+INFO     cases:basepage.py:37 订单页面添加地址街道输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;street&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址街道输入等待开始时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:49 订单页面添加地址街道输入等待结束时间2022--04--12 11:17:32:
+INFO     cases:basepage.py:105 订单页面添加地址城市输入对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)输入Dall
+INFO     cases:basepage.py:37 订单页面添加地址城市输入等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;city&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址城市输入等待开始时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:49 订单页面添加地址城市输入等待结束时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:105 订单页面添加地址选择指定的省对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;province&quot;]&#x27;)输入sdadsad
+INFO     cases:basepage.py:37 订单页面添加地址选择指定的省等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;province&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址选择指定的省等待开始时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:49 订单页面添加地址选择指定的省等待结束时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:105 订单页面添加地址输入邮编对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)输入A00 0AA
+INFO     cases:basepage.py:37 订单页面添加地址输入邮编等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;postcode&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址输入邮编等待开始时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:49 订单页面添加地址输入邮编等待结束时间2022--04--12 11:17:33:
+INFO     cases:basepage.py:86 点击邮箱输入框点击(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 点击邮箱输入框等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 点击邮箱输入框等待开始时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:49 点击邮箱输入框等待结束时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:86 清空邮箱输入框点击(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 清空邮箱输入框等待(&#x27;xpath&#x27;, &#x27;//*[@src= &quot;/static/media/clearIcon.ca3ffa67.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 清空邮箱输入框等待开始时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:49 清空邮箱输入框等待结束时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:105 订单页面添加地址输入邮箱对(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)输入jiaming.yang@cloudmall.ai
+INFO     cases:basepage.py:37 订单页面添加地址输入邮箱等待(&#x27;xpath&#x27;, &#x27;//*[@id =&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面添加地址输入邮箱等待开始时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:49 订单页面添加地址输入邮箱等待结束时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:86 订单页面地址保存按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面地址保存按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;保存&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面地址保存按钮等待开始时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:49 订单页面地址保存按钮等待结束时间2022--04--12 11:17:34:
+INFO     cases:basepage.py:86 订单页面保存地址二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面保存地址二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面保存地址二次确认等待开始时间2022--04--12 11:17:35:
+INFO     cases:basepage.py:49 订单页面保存地址二次确认等待结束时间2022--04--12 11:17:35:
+INFO     cases:basepage.py:37 等待订单页面点击优惠券兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 等待订单页面点击优惠券兑换按钮等待开始时间2022--04--12 11:17:35:
+INFO     cases:basepage.py:49 等待订单页面点击优惠券兑换按钮等待结束时间2022--04--12 11:17:36:
+INFO     cases:basepage.py:86 订单页面点击优惠券兑换点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面点击优惠券兑换等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;使用优惠码或优惠券&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面点击优惠券兑换等待开始时间2022--04--12 11:17:39:
+INFO     cases:basepage.py:49 订单页面点击优惠券兑换等待结束时间2022--04--12 11:17:39:
+INFO     cases:basepage.py:105 订单页面优惠券兑换码输入框对(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)输入testyjm15
+INFO     cases:basepage.py:37 订单页面优惠券兑换码输入框等待(&#x27;xpath&#x27;, &#x27;//*[@name=&quot;coupon_code_input&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面优惠券兑换码输入框等待开始时间2022--04--12 11:17:39:
+INFO     cases:basepage.py:49 订单页面优惠券兑换码输入框等待结束时间2022--04--12 11:17:39:
+INFO     cases:basepage.py:86 订单页面输入优惠券兑换码后点击兑换按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面输入优惠券兑换码后点击兑换按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;兑换&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面输入优惠券兑换码后点击兑换按钮等待开始时间2022--04--12 11:17:40:
+INFO     cases:basepage.py:49 订单页面输入优惠券兑换码后点击兑换按钮等待结束时间2022--04--12 11:17:40:
+INFO     cases:basepage.py:86 订单页面优惠券兑换成功后确定按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面优惠券兑换成功后确定按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src = &quot;/imgs/checkout/finger.svg&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面优惠券兑换成功后确定按钮等待开始时间2022--04--12 11:17:40:
+INFO     cases:basepage.py:49 订单页面优惠券兑换成功后确定按钮等待结束时间2022--04--12 11:17:41:
+INFO     cases:basepage.py:86 订单页面选择对应的优惠券点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+INFO     cases:basepage.py:37 订单页面选择对应的优惠券等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;详情&quot; and @color=&quot;emphatic&quot;]/parent::button/preceding-sibling::p&#x27;)元素
+INFO     cases:basepage.py:40 订单页面选择对应的优惠券等待开始时间2022--04--12 11:17:41:
+INFO     cases:basepage.py:49 订单页面选择对应的优惠券等待结束时间2022--04--12 11:17:41:
+INFO     cases:basepage.py:241 提交订单页面向上滑动页面滑动
+INFO     cases:basepage.py:241 提交订单页面向下滑动页面滑动
+INFO     cases:basepage.py:86 订单页面选择paypal支付方式支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;PayPal&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 订单页面选择paypal支付方式支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;PayPal&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 订单页面选择paypal支付方式支付等待开始时间2022--04--12 11:17:46:
+INFO     cases:basepage.py:49 订单页面选择paypal支付方式支付等待结束时间2022--04--12 11:17:46:
+INFO     cases:basepage.py:86 paypal确定支付点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 paypal确定支付等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;继续&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal确定支付等待开始时间2022--04--12 11:17:46:
+INFO     cases:basepage.py:49 paypal确定支付等待结束时间2022--04--12 11:17:46:
+INFO     cases:basepage.py:37 等待paypal登录页面账号输入框出现等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 等待paypal登录页面账号输入框出现等待开始时间2022--04--12 11:17:47:
+INFO     cases:basepage.py:49 等待paypal登录页面账号输入框出现等待结束时间2022--04--12 11:17:53:
+INFO     cases:basepage.py:105 paypal登录页面账号输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)输入sisi.zeng@imaygou.com
+INFO     cases:basepage.py:37 paypal登录页面账号输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;email&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal登录页面账号输入等待开始时间2022--04--12 11:17:53:
+INFO     cases:basepage.py:49 paypal登录页面账号输入等待结束时间2022--04--12 11:17:53:
+INFO     cases:basepage.py:86 paypal输入账号后点击下一步按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnNext&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 paypal输入账号后点击下一步按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnNext&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal输入账号后点击下一步按钮等待开始时间2022--04--12 11:17:54:
+INFO     cases:basepage.py:49 paypal输入账号后点击下一步按钮等待结束时间2022--04--12 11:17:54:
+INFO     cases:basepage.py:105 paypal登录页面密码输入对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;password&quot;]&#x27;)输入Cloudmall0311
+INFO     cases:basepage.py:37 paypal登录页面密码输入等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;password&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal登录页面密码输入等待开始时间2022--04--12 11:17:54:
+INFO     cases:basepage.py:49 paypal登录页面密码输入等待结束时间2022--04--12 11:17:55:
+INFO     cases:basepage.py:86 paypal登录页面登录按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnLogin&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 paypal登录页面登录按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;btnLogin&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal登录页面登录按钮等待开始时间2022--04--12 11:17:56:
+INFO     cases:basepage.py:49 paypal登录页面登录按钮等待结束时间2022--04--12 11:17:56:
+INFO     cases:basepage.py:241 paypal支付页面向下滑动页面滑动
+INFO     cases:basepage.py:37 paypal支付页面等待支付按钮出现等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal支付页面等待支付按钮出现等待开始时间2022--04--12 11:18:04:
+INFO     cases:basepage.py:49 paypal支付页面等待支付按钮出现等待结束时间2022--04--12 11:18:04:
+INFO     cases:basepage.py:86 点击订单页面提交订单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 点击订单页面提交订单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;payment-submit-btn&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 点击订单页面提交订单按钮等待开始时间2022--04--12 11:18:04:
+INFO     cases:basepage.py:49 点击订单页面提交订单按钮等待结束时间2022--04--12 11:18:04:
+INFO     cases:basepage.py:37 paypal支付后等待支付成功文案出现等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;支付成功&quot;]&#x27;)元素
+INFO     cases:basepage.py:40 paypal支付后等待支付成功文案出现等待开始时间2022--04--12 11:18:20:
+INFO     cases:basepage.py:49 paypal支付后等待支付成功文案出现等待结束时间2022--04--12 11:18:23:
+INFO     cases:order_page.py:333 2022-04-12 11:08:11 站点cloudmall英国地区已登录用户paypal支付的订单号:https://www.cloudmall.ai/GB/zh-Hans/guestcheckout/success/21010282?method=paypal&amp;PayerID=6R3CK6TPPYM62&amp;st=Authorized&amp;tx=3R089379B5698113P&amp;cc=GBP&amp;amt=0.29&amp;cm=%7B%22order_id%22%3A%2221010282%22%2C%22payment_id%22%3A%226254ef5ca9456a0001315949%22%7D&amp;payer_email=sisi.zeng%40imaygou.com&amp;payer_id=6R3CK6TPPYM62&amp;payer_status=VERIFIED&amp;first_name=%E6%80%9D%E6%80%9D&amp;last_name=%E6%9B%BE&amp;address_name=hello%20world&amp;address_street=1221%20Pershore%20Road&amp;address_city=Birmingham&amp;address_state=Berkshire&amp;address_country_code=GB&amp;address_zip=B30%202YT&amp;residence_country=GB&amp;txn_id=3R089379B5698113P&amp;mc_currency=GBP&amp;mc_gross=0.29&amp;protection_eligibility=ELIGIBLE&amp;payment_gross=0.29&amp;payment_status=Authorized&amp;pending_reason=authorization&amp;payment_type=instant&amp;handling_amount=0.00&amp;shipping=0.00&amp;item_name=CloudMall%2021010282&amp;quantity=1&amp;txn_type=web_accept&amp;payment_date=2022-04-12T03%3A17%3A49Z&amp;receiver_id=YR2X68TXA9MPU&amp;notify_version=UNVERSIONED&amp;custom=%7B%22order_id%22%3A%2221010282%22%2C%22payment_id%22%3A%226254ef5ca9456a0001315949%22%7D&amp;verify_sign=A91o5bSW2hVnhMKjFXvmXVMoY7SXARdUPiuanPHyZTFweHpaT04hw27G<br/></div></td></tr></tbody></table></body></html>

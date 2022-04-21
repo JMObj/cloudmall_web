@@ -1,0 +1,1 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites><testsuite errors="0" failures="0" hostname="SKY-20200315IMD" name="pytest" skipped="0" tests="1" time="9.769" timestamp="2021-01-21T15:59:10.004506"><testcase classname="TestCases.test_login.Testlogin" name="test_login_success" time="9.653" /></testsuite></testsuites>

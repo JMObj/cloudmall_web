@@ -1,0 +1,4 @@
+selenium
+pytest
+win32con
+win32gui

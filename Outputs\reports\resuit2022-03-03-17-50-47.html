@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>Outputs\reports\resuit2022-03-03-17-50-47.html</h1>
+    <p>Report generated on 03-Mar-2022 at 17:51:53 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>/Library/Java/JavaVirtualMachines/jdk1.8.0_321.jdk/Contents/Home</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "6.2.4"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-10.14.6-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "1.11.0", "rerunfailures": "10.2"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>1 tests ran in 66.28 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">1 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">0 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_add_item</td>
+          <td class="col-duration">34.97</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:51:26,976 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:51:26,980 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:51:26,981 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:51:26:
+2022-03-03 17:51:27,022 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:51:27:
+2022-03-03 17:51:29,668 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:51:29,668 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:51:29,669 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:51:29:
+2022-03-03 17:51:29,695 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:51:29:
+2022-03-03 17:51:29,857 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:51:29,858 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:51:29,858 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:51:29:
+2022-03-03 17:51:29,878 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:51:29:
+2022-03-03 17:51:33,400 - [conftest.py--&gt;line:29] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:51:26:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:51:27:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:51:29:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:51:29:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:51:29:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:51:29:
+INFO     cases:conftest.py:29 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:51:33,832 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:51:33,833 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:51:33,833 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:51:33:
+2022-03-03 17:51:36,550 - [basepage.py--&gt;line:50] - INFO: 商品详情页点击加购按钮等待结束时间2022--03--03 17:51:36:
+2022-03-03 17:51:36,874 - [basepage.py--&gt;line:85] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-03-03 17:51:36,875 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+2022-03-03 17:51:36,875 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--03--03 17:51:36:
+2022-03-03 17:51:37,477 - [basepage.py--&gt;line:50] - INFO: 选择商品后点击确认按钮等待结束时间2022--03--03 17:51:37:
+2022-03-03 17:51:37,605 - [basepage.py--&gt;line:85] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-03-03 17:51:37,605 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+2022-03-03 17:51:37,605 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--03--03 17:51:37:
+2022-03-03 17:51:39,320 - [basepage.py--&gt;line:50] - INFO: 商品详情点击购物车按钮等待结束时间2022--03--03 17:51:39:
+2022-03-03 17:51:42,491 - [basepage.py--&gt;line:85] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-03-03 17:51:42,499 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+2022-03-03 17:51:42,499 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--03--03 17:51:42:
+2022-03-03 17:51:42,523 - [basepage.py--&gt;line:50] - INFO: 购物车列表编辑按钮等待结束时间2022--03--03 17:51:42:
+2022-03-03 17:51:42,639 - [basepage.py--&gt;line:85] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-03-03 17:51:42,639 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+2022-03-03 17:51:42,639 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--03--03 17:51:42:
+2022-03-03 17:51:42,661 - [basepage.py--&gt;line:50] - INFO: 购物车列表删除按钮等待结束时间2022--03--03 17:51:42:
+2022-03-03 17:51:42,757 - [basepage.py--&gt;line:85] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-03-03 17:51:42,758 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+2022-03-03 17:51:42,758 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--03--03 17:51:42:
+2022-03-03 17:51:43,297 - [basepage.py--&gt;line:50] - INFO: 删除商品后二次确认等待结束时间2022--03--03 17:51:43:
+2022-03-03 17:51:47,403 - [basepage.py--&gt;line:37] - INFO: 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+2022-03-03 17:51:47,403 - [basepage.py--&gt;line:40] - INFO: 检测购物车商品数量是否为1等待开始时间2022--03--03 17:51:47:
+2022-03-03 17:51:52,526 - [basepage.py--&gt;line:44] - ERROR: 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:51:53,474 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/检测购物车商品数量是否为1_1646301112.5313659.png目录
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:51:33:
+INFO     cases:basepage.py:50 商品详情页点击加购按钮等待结束时间2022--03--03 17:51:36:
+INFO     cases:basepage.py:85 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--03--03 17:51:36:
+INFO     cases:basepage.py:50 选择商品后点击确认按钮等待结束时间2022--03--03 17:51:37:
+INFO     cases:basepage.py:85 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--03--03 17:51:37:
+INFO     cases:basepage.py:50 商品详情点击购物车按钮等待结束时间2022--03--03 17:51:39:
+INFO     cases:basepage.py:85 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--03--03 17:51:42:
+INFO     cases:basepage.py:50 购物车列表编辑按钮等待结束时间2022--03--03 17:51:42:
+INFO     cases:basepage.py:85 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--03--03 17:51:42:
+INFO     cases:basepage.py:50 购物车列表删除按钮等待结束时间2022--03--03 17:51:42:
+INFO     cases:basepage.py:85 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--03--03 17:51:42:
+INFO     cases:basepage.py:50 删除商品后二次确认等待结束时间2022--03--03 17:51:43:
+INFO     cases:basepage.py:37 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 检测购物车商品数量是否为1等待开始时间2022--03--03 17:51:47:
+ERROR    cases:basepage.py:44 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/检测购物车商品数量是否为1_1646301112.5313659.png目录<br/></div></td></tr></tbody></table></body></html>

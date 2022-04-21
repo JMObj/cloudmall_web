@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>Outputs\reports\resuit2022-03-03-17-43-45.html</h1>
+    <p>Report generated on 03-Mar-2022 at 17:45:30 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>JAVA_HOME</td>
+        <td>/Library/Java/JavaVirtualMachines/jdk1.8.0_321.jdk/Contents/Home</td></tr>
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.10.0", "pytest": "6.2.4"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>macOS-10.14.6-x86_64-i386-64bit</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "1.11.0", "rerunfailures": "10.2"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.9.4</td></tr></table>
+    <h2>Summary</h2>
+    <p>0 tests ran in 104.04 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">0 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">0 failed</span>, <input checked="true" class="filter" data-test-result="error" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">1 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>, <input checked="true" class="filter" data-test-result="rerun" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="rerun">2 rerun</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="error results-table-row">
+        <tr>
+          <td class="col-result">Error</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_add_item::setup</td>
+          <td class="col-duration">57.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">@pytest.fixture<br/>    def init_driver():<br/>        &#x27;&#x27;&#x27;<br/>        常规用例前置/后置<br/>        :return:<br/>        &#x27;&#x27;&#x27;<br/>        try:<br/>            mobile_emulation = {&quot;deviceName&quot;: &quot;iPhone X&quot;}<br/>            options = webdriver.ChromeOptions()<br/>            options.add_argument(&quot;--auto-open-devtools-for-tabs&quot;)<br/>            options.add_experimental_option(&#x27;mobileEmulation&#x27;, mobile_emulation)<br/>            options.add_experimental_option(&#x27;w3c&#x27;, False)<br/>            options.add_argument(&quot;--kiosk&quot;)<br/>            driver = webdriver.Chrome(options=options)<br/>            driver.get(CommonData.Common_url.site_url)<br/>            drivers = BasePage(driver)<br/>            time.sleep(3)<br/>            try:<br/>&gt;               suspondWindowHandler(driver)<br/><br/>TestCases/conftest.py:45: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>brower = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;54bd76167d0fb1d6a78c4a4e05e2e106&quot;)&gt;<br/><br/>    def suspondWindowHandler(brower):<br/>        #处理普通弹窗<br/>&gt;       suspondWindow = brower.find_element_by_xpath(HomeLocators.home_popups)<br/><br/>TestCases/conftest.py:22: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;54bd76167d0fb1d6a78c4a4e05e2e106&quot;)&gt;<br/>xpath = &#x27;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&#x27;<br/><br/>    def find_element_by_xpath(self, xpath):<br/>        &quot;&quot;&quot;<br/>        Finds an element by xpath.<br/>    <br/>        :Args:<br/>         - xpath - The xpath locator of the element to find.<br/>    <br/>        :Returns:<br/>         - WebElement - the element if it was found<br/>    <br/>        :Raises:<br/>         - NoSuchElementException - if the element wasn&#x27;t found<br/>    <br/>        :Usage:<br/>            element = driver.find_element_by_xpath(&#x27;//div/td[1]&#x27;)<br/>        &quot;&quot;&quot;<br/>&gt;       return self.find_element(by=By.XPATH, value=xpath)<br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py:394: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;54bd76167d0fb1d6a78c4a4e05e2e106&quot;)&gt;<br/>by = &#x27;xpath&#x27;, value = &#x27;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&#x27;<br/><br/>    def find_element(self, by=By.ID, value=None):<br/>        &quot;&quot;&quot;<br/>        Find an element given a By strategy and locator. Prefer the find_element_by_* methods when<br/>        possible.<br/>    <br/>        :Usage:<br/>            element = driver.find_element(By.ID, &#x27;foo&#x27;)<br/>    <br/>        :rtype: WebElement<br/>        &quot;&quot;&quot;<br/>        if self.w3c:<br/>            if by == By.ID:<br/>                by = By.CSS_SELECTOR<br/>                value = &#x27;[id=&quot;%s&quot;]&#x27; % value<br/>            elif by == By.TAG_NAME:<br/>                by = By.CSS_SELECTOR<br/>            elif by == By.CLASS_NAME:<br/>                by = By.CSS_SELECTOR<br/>                value = &quot;.%s&quot; % value<br/>            elif by == By.NAME:<br/>                by = By.CSS_SELECTOR<br/>                value = &#x27;[name=&quot;%s&quot;]&#x27; % value<br/>&gt;       return self.execute(Command.FIND_ELEMENT, {<br/>            &#x27;using&#x27;: by,<br/>            &#x27;value&#x27;: value})[&#x27;value&#x27;]<br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py:976: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;54bd76167d0fb1d6a78c4a4e05e2e106&quot;)&gt;<br/>driver_command = &#x27;findElement&#x27;<br/>params = {&#x27;sessionId&#x27;: &#x27;54bd76167d0fb1d6a78c4a4e05e2e106&#x27;, &#x27;using&#x27;: &#x27;xpath&#x27;, &#x27;value&#x27;: &#x27;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&#x27;}<br/><br/>    def execute(self, driver_command, params=None):<br/>        &quot;&quot;&quot;<br/>        Sends a command to be executed by a command.CommandExecutor.<br/>    <br/>        :Args:<br/>         - driver_command: The name of the command to execute as a string.<br/>         - params: A dictionary of named parameters to send with the command.<br/>    <br/>        :Returns:<br/>          The command&#x27;s JSON response loaded into a dictionary object.<br/>        &quot;&quot;&quot;<br/>        if self.session_id is not None:<br/>            if not params:<br/>                params = {&#x27;sessionId&#x27;: self.session_id}<br/>            elif &#x27;sessionId&#x27; not in params:<br/>                params[&#x27;sessionId&#x27;] = self.session_id<br/>    <br/>        params = self._wrap_value(params)<br/>        response = self.command_executor.execute(driver_command, params)<br/>        if response:<br/>&gt;           self.error_handler.check_response(response)<br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py:321: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.remote.errorhandler.ErrorHandler object at 0x10c4d2130&gt;<br/>response = {&#x27;sessionId&#x27;: &#x27;54bd76167d0fb1d6a78c4a4e05e2e106&#x27;, &#x27;status&#x27;: 7, &#x27;value&#x27;: {&#x27;message&#x27;: &#x27;no such element: Unable to locate....4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)&#x27;}}<br/><br/>    def check_response(self, response):<br/>        &quot;&quot;&quot;<br/>        Checks that a JSON response from the WebDriver does not have an error.<br/>    <br/>        :Args:<br/>         - response - The JSON response from the WebDriver server as a dictionary<br/>           object.<br/>    <br/>        :Raises: If the response contains an error message.<br/>        &quot;&quot;&quot;<br/>        status = response.get(&#x27;status&#x27;, None)<br/>        if status is None or status == ErrorCode.SUCCESS:<br/>            return<br/>        value = None<br/>        message = response.get(&quot;message&quot;, &quot;&quot;)<br/>        screen = response.get(&quot;screen&quot;, &quot;&quot;)<br/>        stacktrace = None<br/>        if isinstance(status, int):<br/>            value_json = response.get(&#x27;value&#x27;, None)<br/>            if value_json and isinstance(value_json, basestring):<br/>                import json<br/>                try:<br/>                    value = json.loads(value_json)<br/>                    if len(value.keys()) == 1:<br/>                        value = value[&#x27;value&#x27;]<br/>                    status = value.get(&#x27;error&#x27;, None)<br/>                    if status is None:<br/>                        status = value[&quot;status&quot;]<br/>                        message = value[&quot;value&quot;]<br/>                        if not isinstance(message, basestring):<br/>                            value = message<br/>                            message = message.get(&#x27;message&#x27;)<br/>                    else:<br/>                        message = value.get(&#x27;message&#x27;, None)<br/>                except ValueError:<br/>                    pass<br/>    <br/>        exception_class = ErrorInResponseException<br/>        if status in ErrorCode.NO_SUCH_ELEMENT:<br/>            exception_class = NoSuchElementException<br/>        elif status in ErrorCode.NO_SUCH_FRAME:<br/>            exception_class = NoSuchFrameException<br/>        elif status in ErrorCode.NO_SUCH_WINDOW:<br/>            exception_class = NoSuchWindowException<br/>        elif status in ErrorCode.STALE_ELEMENT_REFERENCE:<br/>            exception_class = StaleElementReferenceException<br/>        elif status in ErrorCode.ELEMENT_NOT_VISIBLE:<br/>            exception_class = ElementNotVisibleException<br/>        elif status in ErrorCode.INVALID_ELEMENT_STATE:<br/>            exception_class = InvalidElementStateException<br/>        elif status in ErrorCode.INVALID_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR \<br/>                or status in ErrorCode.INVALID_XPATH_SELECTOR_RETURN_TYPER:<br/>            exception_class = InvalidSelectorException<br/>        elif status in ErrorCode.ELEMENT_IS_NOT_SELECTABLE:<br/>            exception_class = ElementNotSelectableException<br/>        elif status in ErrorCode.ELEMENT_NOT_INTERACTABLE:<br/>            exception_class = ElementNotInteractableException<br/>        elif status in ErrorCode.INVALID_COOKIE_DOMAIN:<br/>            exception_class = InvalidCookieDomainException<br/>        elif status in ErrorCode.UNABLE_TO_SET_COOKIE:<br/>            exception_class = UnableToSetCookieException<br/>        elif status in ErrorCode.TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.SCRIPT_TIMEOUT:<br/>            exception_class = TimeoutException<br/>        elif status in ErrorCode.UNKNOWN_ERROR:<br/>            exception_class = WebDriverException<br/>        elif status in ErrorCode.UNEXPECTED_ALERT_OPEN:<br/>            exception_class = UnexpectedAlertPresentException<br/>        elif status in ErrorCode.NO_ALERT_OPEN:<br/>            exception_class = NoAlertPresentException<br/>        elif status in ErrorCode.IME_NOT_AVAILABLE:<br/>            exception_class = ImeNotAvailableException<br/>        elif status in ErrorCode.IME_ENGINE_ACTIVATION_FAILED:<br/>            exception_class = ImeActivationFailedException<br/>        elif status in ErrorCode.MOVE_TARGET_OUT_OF_BOUNDS:<br/>            exception_class = MoveTargetOutOfBoundsException<br/>        elif status in ErrorCode.JAVASCRIPT_ERROR:<br/>            exception_class = JavascriptException<br/>        elif status in ErrorCode.SESSION_NOT_CREATED:<br/>            exception_class = SessionNotCreatedException<br/>        elif status in ErrorCode.INVALID_ARGUMENT:<br/>            exception_class = InvalidArgumentException<br/>        elif status in ErrorCode.NO_SUCH_COOKIE:<br/>            exception_class = NoSuchCookieException<br/>        elif status in ErrorCode.UNABLE_TO_CAPTURE_SCREEN:<br/>            exception_class = ScreenshotException<br/>        elif status in ErrorCode.ELEMENT_CLICK_INTERCEPTED:<br/>            exception_class = ElementClickInterceptedException<br/>        elif status in ErrorCode.INSECURE_CERTIFICATE:<br/>            exception_class = InsecureCertificateException<br/>        elif status in ErrorCode.INVALID_COORDINATES:<br/>            exception_class = InvalidCoordinatesException<br/>        elif status in ErrorCode.INVALID_SESSION_ID:<br/>            exception_class = InvalidSessionIdException<br/>        elif status in ErrorCode.UNKNOWN_METHOD:<br/>            exception_class = UnknownMethodException<br/>        else:<br/>            exception_class = WebDriverException<br/>        if value == &#x27;&#x27; or value is None:<br/>            value = response[&#x27;value&#x27;]<br/>        if isinstance(value, basestring):<br/>            if exception_class == ErrorInResponseException:<br/>                raise exception_class(response, value)<br/>            raise exception_class(value)<br/>        if message == &quot;&quot; and &#x27;message&#x27; in value:<br/>            message = value[&#x27;message&#x27;]<br/>    <br/>        screen = None<br/>        if &#x27;screen&#x27; in value:<br/>            screen = value[&#x27;screen&#x27;]<br/>    <br/>        stacktrace = None<br/>        if &#x27;stackTrace&#x27; in value and value[&#x27;stackTrace&#x27;]:<br/>            stacktrace = []<br/>            try:<br/>                for frame in value[&#x27;stackTrace&#x27;]:<br/>                    line = self._value_or_default(frame, &#x27;lineNumber&#x27;, &#x27;&#x27;)<br/>                    file = self._value_or_default(frame, &#x27;fileName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                    if line:<br/>                        file = &quot;%s:%s&quot; % (file, line)<br/>                    meth = self._value_or_default(frame, &#x27;methodName&#x27;, &#x27;&lt;anonymous&gt;&#x27;)<br/>                    if &#x27;className&#x27; in frame:<br/>                        meth = &quot;%s.%s&quot; % (frame[&#x27;className&#x27;], meth)<br/>                    msg = &quot;    at %s (%s)&quot;<br/>                    msg = msg % (meth, file)<br/>                    stacktrace.append(msg)<br/>            except TypeError:<br/>                pass<br/>        if exception_class == ErrorInResponseException:<br/>            raise exception_class(response, message)<br/>        elif exception_class == UnexpectedAlertPresentException:<br/>            alert_text = None<br/>            if &#x27;data&#x27; in value:<br/>                alert_text = value[&#x27;data&#x27;].get(&#x27;text&#x27;)<br/>            elif &#x27;alert&#x27; in value:<br/>                alert_text = value[&#x27;alert&#x27;].get(&#x27;text&#x27;)<br/>            raise exception_class(message, screen, stacktrace, alert_text)<br/>&gt;       raise exception_class(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&quot;}</span><br/><span class="error">E         (Session info: chrome=98.0.4758.109)</span><br/><span class="error">E         (Driver info: chromedriver=97.0.4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)</span><br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/errorhandler.py:242: NoSuchElementException<br/><br/>During handling of the above exception, another exception occurred:<br/><br/>    @pytest.fixture<br/>    def init_driver():<br/>        &#x27;&#x27;&#x27;<br/>        常规用例前置/后置<br/>        :return:<br/>        &#x27;&#x27;&#x27;<br/>        try:<br/>            mobile_emulation = {&quot;deviceName&quot;: &quot;iPhone X&quot;}<br/>            options = webdriver.ChromeOptions()<br/>            options.add_argument(&quot;--auto-open-devtools-for-tabs&quot;)<br/>            options.add_experimental_option(&#x27;mobileEmulation&#x27;, mobile_emulation)<br/>            options.add_experimental_option(&#x27;w3c&#x27;, False)<br/>            options.add_argument(&quot;--kiosk&quot;)<br/>            driver = webdriver.Chrome(options=options)<br/>            driver.get(CommonData.Common_url.site_url)<br/>            drivers = BasePage(driver)<br/>            time.sleep(3)<br/>            try:<br/>                suspondWindowHandler(driver)<br/>            except Exception as e:<br/>&gt;               drivers.ele_click(HomeLocators.home_menu, &#x27;首页左上角菜单按钮&#x27;)<br/><br/>TestCases/conftest.py:47: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>common/basepage.py:87: in ele_click<br/>    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)<br/>common/basepage.py:42: in wait_ele_visible<br/>    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.wait.WebDriverWait (session=&quot;54bd76167d0fb1d6a78c4a4e05e2e106&quot;)&gt;<br/>method = &lt;selenium.webdriver.support.expected_conditions.visibility_of_element_located object at 0x10c4cab50&gt;<br/>message = &#x27;&#x27;<br/><br/>    def until(self, method, message=&#x27;&#x27;):<br/>        &quot;&quot;&quot;Calls the method provided with the driver as an argument until the \<br/>        return value is not False.&quot;&quot;&quot;<br/>        screen = None<br/>        stacktrace = None<br/>    <br/>        end_time = time.time() + self._timeout<br/>        while True:<br/>            try:<br/>                value = method(self._driver)<br/>                if value:<br/>                    return value<br/>            except self._ignored_exceptions as exc:<br/>                screen = getattr(exc, &#x27;screen&#x27;, None)<br/>                stacktrace = getattr(exc, &#x27;stacktrace&#x27;, None)<br/>            time.sleep(self._poll)<br/>            if time.time() &gt; end_time:<br/>                break<br/>&gt;       raise TimeoutException(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.TimeoutException: Message:</span><br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py:80: TimeoutException<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:43:55,326 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:43:55,327 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:43:55,328 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+2022-03-03 17:43:55,356 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+2022-03-03 17:43:58,121 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,174 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,390 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:43:58,424 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,445 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,500 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:44:02,072 - [conftest.py--&gt;line:24] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:conftest.py:24 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:44:02,503 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:44:02,504 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:44:02,505 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+2022-03-03 17:44:05,595 - [basepage.py--&gt;line:50] - INFO: 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+2022-03-03 17:44:05,762 - [basepage.py--&gt;line:85] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+2022-03-03 17:44:06,337 - [basepage.py--&gt;line:50] - INFO: 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:85] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+2022-03-03 17:44:06,491 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+2022-03-03 17:44:08,589 - [basepage.py--&gt;line:50] - INFO: 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+2022-03-03 17:44:11,734 - [basepage.py--&gt;line:85] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,757 - [basepage.py--&gt;line:50] - INFO: 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:85] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,872 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,894 - [basepage.py--&gt;line:50] - INFO: 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:85] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,998 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:12,057 - [basepage.py--&gt;line:50] - INFO: 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+2022-03-03 17:44:16,210 - [basepage.py--&gt;line:37] - INFO: 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+2022-03-03 17:44:16,211 - [basepage.py--&gt;line:40] - INFO: 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+2022-03-03 17:44:16,236 - [basepage.py--&gt;line:50] - INFO: 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+INFO     cases:basepage.py:50 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:85 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:50 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:85 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:50 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+INFO     cases:basepage.py:85 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+INFO     cases:basepage.py:37 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+INFO     cases:basepage.py:50 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:44:28,668 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:44:28,670 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:44:28,670 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:44:28:
+2022-03-03 17:44:28,697 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:44:28:
+2022-03-03 17:44:31,201 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:44:31,202 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:44:31,203 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,231 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,461 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:44:31,475 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:44:31,476 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,524 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:44:31:
+2022-03-03 17:44:34,987 - [conftest.py--&gt;line:24] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:44:28:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:44:28:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:44:31:
+INFO     cases:conftest.py:24 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:44:35,260 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:44:35,261 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:44:35,261 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:35:
+2022-03-03 17:44:55,337 - [basepage.py--&gt;line:44] - ERROR: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:44:55,652 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.36353.png目录
+2022-03-03 17:44:55,653 - [basepage.py--&gt;line:90] - ERROR: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:44:55,910 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.653552.png目录
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:35:
+ERROR    cases:basepage.py:44 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.36353.png目录
+ERROR    cases:basepage.py:90 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.653552.png目录<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:45:08,829 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:45:08,830 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:45:08,831 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:45:08:
+2022-03-03 17:45:29,326 - [basepage.py--&gt;line:44] - ERROR: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 45, in init_driver
+    suspondWindowHandler(driver)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 22, in suspondWindowHandler
+    suspondWindow = brower.find_element_by_xpath(HomeLocators.home_popups)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 394, in find_element_by_xpath
+    return self.find_element(by=By.XPATH, value=xpath)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 976, in find_element
+    return self.execute(Command.FIND_ELEMENT, {
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 321, in execute
+    self.error_handler.check_response(response)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/errorhandler.py&quot;, line 242, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&quot;}
+  (Session info: chrome=98.0.4758.109)
+  (Driver info: chromedriver=97.0.4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:45:29,656 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/首页左上角菜单按钮_1646300729.343277.png目录
+2022-03-03 17:45:29,657 - [basepage.py--&gt;line:90] - ERROR: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 45, in init_driver
+    suspondWindowHandler(driver)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 22, in suspondWindowHandler
+    suspondWindow = brower.find_element_by_xpath(HomeLocators.home_popups)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 394, in find_element_by_xpath
+    return self.find_element(by=By.XPATH, value=xpath)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 976, in find_element
+    return self.execute(Command.FIND_ELEMENT, {
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 321, in execute
+    self.error_handler.check_response(response)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/errorhandler.py&quot;, line 242, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&quot;}
+  (Session info: chrome=98.0.4758.109)
+  (Driver info: chromedriver=97.0.4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:45:29,934 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/首页左上角菜单按钮_1646300729.6579351.png目录
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:45:08:
+ERROR    cases:basepage.py:44 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 45, in init_driver
+    suspondWindowHandler(driver)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 22, in suspondWindowHandler
+    suspondWindow = brower.find_element_by_xpath(HomeLocators.home_popups)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 394, in find_element_by_xpath
+    return self.find_element(by=By.XPATH, value=xpath)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 976, in find_element
+    return self.execute(Command.FIND_ELEMENT, {
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 321, in execute
+    self.error_handler.check_response(response)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/errorhandler.py&quot;, line 242, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&quot;}
+  (Session info: chrome=98.0.4758.109)
+  (Driver info: chromedriver=97.0.4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/首页左上角菜单按钮_1646300729.343277.png目录
+ERROR    cases:basepage.py:90 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 45, in init_driver
+    suspondWindowHandler(driver)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/TestCases/conftest.py&quot;, line 22, in suspondWindowHandler
+    suspondWindow = brower.find_element_by_xpath(HomeLocators.home_popups)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 394, in find_element_by_xpath
+    return self.find_element(by=By.XPATH, value=xpath)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 976, in find_element
+    return self.execute(Command.FIND_ELEMENT, {
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/webdriver.py&quot;, line 321, in execute
+    self.error_handler.check_response(response)
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/remote/errorhandler.py&quot;, line 242, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.NoSuchElementException: Message: no such element: Unable to locate element: {&quot;method&quot;:&quot;xpath&quot;,&quot;selector&quot;:&quot;//*[@src=&quot;/imgs/common/widgetClose.svg&quot;]&quot;}
+  (Session info: chrome=98.0.4758.109)
+  (Driver info: chromedriver=97.0.4692.71 (adefa7837d02a07a604c1e6eff0b3a09422ab88d-refs/branch-heads/4692@{#1247}),platform=Mac OS X 10.14.6 x86_64)
+
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/首页左上角菜单按钮_1646300729.6579351.png目录<br/></div></td></tr></tbody>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_add_item</td>
+          <td class="col-duration">14.15</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;TestCases.test_cart.TestCart object at 0x10c504040&gt;<br/>init_driver = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;59cdcae2dc20c248abb14cd88b936a66&quot;)&gt;<br/><br/>    @pytest.mark.usefixtures(&#x27;init_driver&#x27;)<br/>    def test_cart_add_item(self, init_driver):<br/>        &#x27;&#x27;&#x27;<br/>        添加商品到购物车后删除商品<br/>        :return:<br/>        &#x27;&#x27;&#x27;<br/>&gt;       assert CartPage(init_driver).delete_item() is True<br/><span class="error">E       assert False is True</span><br/><span class="error">E        +  where False = &lt;bound method CartPage.delete_item of &lt;PageObject.cart_page.CartPage object at 0x10c4ec790&gt;&gt;()</span><br/><span class="error">E        +    where &lt;bound method CartPage.delete_item of &lt;PageObject.cart_page.CartPage object at 0x10c4ec790&gt;&gt; = &lt;PageObject.cart_page.CartPage object at 0x10c4ec790&gt;.delete_item</span><br/><span class="error">E        +      where &lt;PageObject.cart_page.CartPage object at 0x10c4ec790&gt; = CartPage(&lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;59cdcae2dc20c248abb14cd88b936a66&quot;)&gt;)</span><br/><br/>TestCases/test_cart.py:27: AssertionError<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:43:55,326 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:43:55,327 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:43:55,328 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+2022-03-03 17:43:55,356 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+2022-03-03 17:43:58,121 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,174 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,390 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:43:58,424 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,445 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,500 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:44:02,072 - [conftest.py--&gt;line:24] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:conftest.py:24 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:44:02,503 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:44:02,504 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:44:02,505 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+2022-03-03 17:44:05,595 - [basepage.py--&gt;line:50] - INFO: 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+2022-03-03 17:44:05,762 - [basepage.py--&gt;line:85] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+2022-03-03 17:44:06,337 - [basepage.py--&gt;line:50] - INFO: 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:85] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+2022-03-03 17:44:06,491 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+2022-03-03 17:44:08,589 - [basepage.py--&gt;line:50] - INFO: 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+2022-03-03 17:44:11,734 - [basepage.py--&gt;line:85] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,757 - [basepage.py--&gt;line:50] - INFO: 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:85] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,872 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,894 - [basepage.py--&gt;line:50] - INFO: 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:85] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,998 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:12,057 - [basepage.py--&gt;line:50] - INFO: 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+2022-03-03 17:44:16,210 - [basepage.py--&gt;line:37] - INFO: 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+2022-03-03 17:44:16,211 - [basepage.py--&gt;line:40] - INFO: 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+2022-03-03 17:44:16,236 - [basepage.py--&gt;line:50] - INFO: 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+INFO     cases:basepage.py:50 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:85 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:50 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:85 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:50 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+INFO     cases:basepage.py:85 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+INFO     cases:basepage.py:37 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+INFO     cases:basepage.py:50 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:<br/></div></td></tr></tbody>
+      <tbody class="rerun results-table-row">
+        <tr>
+          <td class="col-result">Rerun</td>
+          <td class="col-name">TestCases/test_cart.py::TestCart::test_cart_add_item</td>
+          <td class="col-duration">20.92</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;TestCases.test_cart.TestCart object at 0x10c4eea30&gt;<br/>init_driver = &lt;selenium.webdriver.chrome.webdriver.WebDriver (session=&quot;90ff936706e2dc5d83bc3d3a245f822e&quot;)&gt;<br/><br/>    @pytest.mark.usefixtures(&#x27;init_driver&#x27;)<br/>    def test_cart_add_item(self, init_driver):<br/>        &#x27;&#x27;&#x27;<br/>        添加商品到购物车后删除商品<br/>        :return:<br/>        &#x27;&#x27;&#x27;<br/>&gt;       assert CartPage(init_driver).delete_item() is True<br/><br/>TestCases/test_cart.py:27: <br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/>PageObject/cart_page.py:38: in delete_item<br/>    self.ele_click(ItemLocators.item_add_cart_button, &#x27;商品详情页点击加购按钮&#x27;)<br/>common/basepage.py:87: in ele_click<br/>    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)<br/>common/basepage.py:42: in wait_ele_visible<br/>    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))<br/>_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ <br/><br/>self = &lt;selenium.webdriver.support.wait.WebDriverWait (session=&quot;90ff936706e2dc5d83bc3d3a245f822e&quot;)&gt;<br/>method = &lt;selenium.webdriver.support.expected_conditions.visibility_of_element_located object at 0x10c5f4eb0&gt;<br/>message = &#x27;&#x27;<br/><br/>    def until(self, method, message=&#x27;&#x27;):<br/>        &quot;&quot;&quot;Calls the method provided with the driver as an argument until the \<br/>        return value is not False.&quot;&quot;&quot;<br/>        screen = None<br/>        stacktrace = None<br/>    <br/>        end_time = time.time() + self._timeout<br/>        while True:<br/>            try:<br/>                value = method(self._driver)<br/>                if value:<br/>                    return value<br/>            except self._ignored_exceptions as exc:<br/>                screen = getattr(exc, &#x27;screen&#x27;, None)<br/>                stacktrace = getattr(exc, &#x27;stacktrace&#x27;, None)<br/>            time.sleep(self._poll)<br/>            if time.time() &gt; end_time:<br/>                break<br/>&gt;       raise TimeoutException(message, screen, stacktrace)<br/><span class="error">E       selenium.common.exceptions.TimeoutException: Message:</span><br/><br/>/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py:80: TimeoutException<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:43:55,326 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:43:55,327 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:43:55,328 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+2022-03-03 17:43:55,356 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+2022-03-03 17:43:58,121 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,149 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,174 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,390 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:43:58,424 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:43:58,445 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:43:58:
+2022-03-03 17:43:58,500 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:43:58:
+2022-03-03 17:44:02,072 - [conftest.py--&gt;line:24] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:43:55:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:43:58:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:43:58:
+INFO     cases:conftest.py:24 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:44:02,503 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:44:02,504 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:44:02,505 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+2022-03-03 17:44:05,595 - [basepage.py--&gt;line:50] - INFO: 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+2022-03-03 17:44:05,762 - [basepage.py--&gt;line:85] - INFO: 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:37] - INFO: 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+2022-03-03 17:44:05,763 - [basepage.py--&gt;line:40] - INFO: 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+2022-03-03 17:44:06,337 - [basepage.py--&gt;line:50] - INFO: 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:85] - INFO: 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+2022-03-03 17:44:06,490 - [basepage.py--&gt;line:37] - INFO: 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+2022-03-03 17:44:06,491 - [basepage.py--&gt;line:40] - INFO: 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+2022-03-03 17:44:08,589 - [basepage.py--&gt;line:50] - INFO: 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+2022-03-03 17:44:11,734 - [basepage.py--&gt;line:85] - INFO: 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:37] - INFO: 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,735 - [basepage.py--&gt;line:40] - INFO: 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,757 - [basepage.py--&gt;line:50] - INFO: 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:85] - INFO: 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+2022-03-03 17:44:11,871 - [basepage.py--&gt;line:37] - INFO: 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,872 - [basepage.py--&gt;line:40] - INFO: 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,894 - [basepage.py--&gt;line:50] - INFO: 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:85] - INFO: 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+2022-03-03 17:44:11,997 - [basepage.py--&gt;line:37] - INFO: 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+2022-03-03 17:44:11,998 - [basepage.py--&gt;line:40] - INFO: 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+2022-03-03 17:44:12,057 - [basepage.py--&gt;line:50] - INFO: 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+2022-03-03 17:44:16,210 - [basepage.py--&gt;line:37] - INFO: 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+2022-03-03 17:44:16,211 - [basepage.py--&gt;line:40] - INFO: 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+2022-03-03 17:44:16,236 - [basepage.py--&gt;line:50] - INFO: 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:02:
+INFO     cases:basepage.py:50 商品详情页点击加购按钮等待结束时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:85 选择商品后点击确认按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 选择商品后点击确认按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确定&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 选择商品后点击确认按钮等待开始时间2022--03--03 17:44:05:
+INFO     cases:basepage.py:50 选择商品后点击确认按钮等待结束时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:85 商品详情点击购物车按钮点击(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情点击购物车按钮等待(&#x27;xpath&#x27;, &#x27;//*[@src=&quot;/imgs/dp/dpCartIcon.svg&quot; ]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情点击购物车按钮等待开始时间2022--03--03 17:44:06:
+INFO     cases:basepage.py:50 商品详情点击购物车按钮等待结束时间2022--03--03 17:44:08:
+INFO     cases:basepage.py:85 购物车列表编辑按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表编辑按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;编辑&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表编辑按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表编辑按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 购物车列表删除按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 购物车列表删除按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;删除&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 购物车列表删除按钮等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 购物车列表删除按钮等待结束时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:85 删除商品后二次确认点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 删除商品后二次确认等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;确认&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 删除商品后二次确认等待开始时间2022--03--03 17:44:11:
+INFO     cases:basepage.py:50 删除商品后二次确认等待结束时间2022--03--03 17:44:12:
+INFO     cases:basepage.py:37 检测购物车商品数量是否为1等待(&#x27;xpath&#x27;, &#x27;//*[text()=1 and @color=&quot;primary&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 检测购物车商品数量是否为1等待开始时间2022--03--03 17:44:16:
+INFO     cases:basepage.py:50 检测购物车商品数量是否为1等待结束时间2022--03--03 17:44:16:<br/> -----------------------------Captured stderr setup------------------------------ <br/>2022-03-03 17:44:28,668 - [basepage.py--&gt;line:85] - INFO: 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+2022-03-03 17:44:28,670 - [basepage.py--&gt;line:37] - INFO: 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+2022-03-03 17:44:28,670 - [basepage.py--&gt;line:40] - INFO: 首页左上角菜单按钮等待开始时间2022--03--03 17:44:28:
+2022-03-03 17:44:28,697 - [basepage.py--&gt;line:50] - INFO: 首页左上角菜单按钮等待结束时间2022--03--03 17:44:28:
+2022-03-03 17:44:31,201 - [basepage.py--&gt;line:85] - INFO: 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+2022-03-03 17:44:31,202 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:44:31,203 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,231 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,461 - [basepage.py--&gt;line:123] - INFO: 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+2022-03-03 17:44:31,475 - [basepage.py--&gt;line:37] - INFO: 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+2022-03-03 17:44:31,476 - [basepage.py--&gt;line:40] - INFO: 国家列表等待开始时间2022--03--03 17:44:31:
+2022-03-03 17:44:31,524 - [basepage.py--&gt;line:50] - INFO: 国家列表等待结束时间2022--03--03 17:44:31:
+2022-03-03 17:44:34,987 - [conftest.py--&gt;line:24] - INFO: 关闭普通弹窗
+<br/> -------------------------------Captured log setup------------------------------- <br/>INFO     cases:basepage.py:85 首页左上角菜单按钮点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素
+INFO     cases:basepage.py:37 首页左上角菜单按钮等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/div[2]/div/div[1]/div/div[1]/div/img&#x27;)元素可见
+INFO     cases:basepage.py:40 首页左上角菜单按钮等待开始时间2022--03--03 17:44:28:
+INFO     cases:basepage.py:50 首页左上角菜单按钮等待结束时间2022--03--03 17:44:28:
+INFO     cases:basepage.py:85 国家列表点击(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:123 国家列表对(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)选择了United States
+INFO     cases:basepage.py:37 国家列表等待(&#x27;xpath&#x27;, &#x27;//*[@id=&quot;root&quot;]/div/div/div/nav/div[3]/div[1]/div[7]/select&#x27;)元素可见
+INFO     cases:basepage.py:40 国家列表等待开始时间2022--03--03 17:44:31:
+INFO     cases:basepage.py:50 国家列表等待结束时间2022--03--03 17:44:31:
+INFO     cases:conftest.py:24 关闭普通弹窗<br/> ------------------------------Captured stderr call------------------------------ <br/>2022-03-03 17:44:35,260 - [basepage.py--&gt;line:85] - INFO: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+2022-03-03 17:44:35,261 - [basepage.py--&gt;line:37] - INFO: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+2022-03-03 17:44:35,261 - [basepage.py--&gt;line:40] - INFO: 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:35:
+2022-03-03 17:44:55,337 - [basepage.py--&gt;line:44] - ERROR: 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:44:55,652 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.36353.png目录
+2022-03-03 17:44:55,653 - [basepage.py--&gt;line:90] - ERROR: 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+2022-03-03 17:44:55,910 - [basepage.py--&gt;line:309] - INFO: 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.653552.png目录
+<br/> -------------------------------Captured log call-------------------------------- <br/>INFO     cases:basepage.py:85 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素
+INFO     cases:basepage.py:37 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素可见
+INFO     cases:basepage.py:40 商品详情页点击加购按钮等待开始时间2022--03--03 17:44:35:
+ERROR    cases:basepage.py:44 商品详情页点击加购按钮等待(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.36353.png目录
+ERROR    cases:basepage.py:90 商品详情页点击加购按钮点击(&#x27;xpath&#x27;, &#x27;//*[text()=&quot;加入购物车&quot;]&#x27;)元素失败
+Traceback (most recent call last):
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 87, in ele_click
+    self.wait_ele_visible(loc, img_doc, time_out, poll_frequency)
+  File &quot;/Users/yangjiaming/PycharmProjects/cloudmall_web/common/basepage.py&quot;, line 42, in wait_ele_visible
+    WebDriverWait(self.driver, time_out, poll_frequency).until(EC.visibility_of_element_located(loc))
+  File &quot;/Library/Frameworks/Python.framework/Versions/3.9/lib/python3.9/site-packages/selenium/webdriver/support/wait.py&quot;, line 80, in until
+    raise TimeoutException(message, screen, stacktrace)
+selenium.common.exceptions.TimeoutException: Message: 
+
+INFO     cases:basepage.py:309 截图成功保存在/Users/yangjiaming/PycharmProjects/cloudmall_web/Outputs/pageshots/商品详情页点击加购按钮_1646300695.653552.png目录<br/></div></td></tr></tbody></table></body></html>

@@ -1,0 +1,21 @@
+INFO     cases:conftest.py:11 =================这个是类的前置==================
+INFO     cases:basepage.py:29 登录页面等待('xpath', '//input[@id="loginsubmit"]')元素可见
+INFO     cases:basepage.py:32 登录页面等待起止时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:42 登录页面等待结束时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:95 登录页面对('xpath', '//input[@id="user_name"]')输入123456789
+INFO     cases:basepage.py:29 登录页面等待('xpath', '//input[@id="user_name"]')元素可见
+INFO     cases:basepage.py:32 登录页面等待起止时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:42 登录页面等待结束时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:95 商家端登录页面对('xpath', '//input[@id="password"]')输入123456
+INFO     cases:basepage.py:29 商家端登录页面等待('xpath', '//input[@id="password"]')元素可见
+INFO     cases:basepage.py:32 商家端登录页面等待起止时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:42 商家端登录页面等待结束时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:95 商家端登录页面验证码输入框对('xpath', '//input[@id="captcha"]')输入1234
+INFO     cases:basepage.py:29 商家端登录页面验证码输入框等待('xpath', '//input[@id="captcha"]')元素可见
+INFO     cases:basepage.py:32 商家端登录页面验证码输入框等待起止时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:42 商家端登录页面验证码输入框等待结束时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:77 商家端登录页面登录按钮点击('xpath', '//input[@id="loginsubmit"]')元素
+INFO     cases:basepage.py:29 商家端登录页面登录按钮等待('xpath', '//input[@id="loginsubmit"]')元素可见
+INFO     cases:basepage.py:32 商家端登录页面登录按钮等待起止时间2021--01--27 11:06:46:
+INFO     cases:basepage.py:42 商家端登录页面登录按钮等待结束时间2021--01--27 11:06:46:
+INFO     cases:conftest.py:13 =================这个是类的后置==================

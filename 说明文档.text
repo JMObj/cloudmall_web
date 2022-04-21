@@ -1,0 +1,21 @@
+Outputs 日志/报告/截图存放层
+
+common当中存放当前项目中的公共数据和配置文件
+
+PageObjects:该层次存放操作元素（该层级的命名规则是page +功能名）
+
+PageLocators：该层次存放元素定位（该层级的命名规则是page+loc +功能名  注意每个定位的元素注释要写清楚，该元素是属于那个页面的）
+
+Testdatas:该代码层存放了测试用例的数据，当TestCases中创建了一个文件，也要对应在TestDatasz中也创建一个文件（该层级的命名规则是：功能名+datas
+注意当TestCases当中创建一个测试用例，就应该在Testdatas当中创建一个对应的文件）
+        CommonData存放公共数据，比如链接
+
+
+TestCases:该层次存放了	测试用例， 用于操作pageobjects中的元素（该层级的命名规则是：test+功能名）
+
+
+pytest.fixture
+        coftest.py 公共共享的前置与后置
+                    在测试用例的模块中，共有的内容上，去追加模块业务共有的前置后置
+        pytest.ini  筛选测试用例
+                    注册好标记名称后使用pytest.mark加上注册好的标记名称，在run文件执行指定的测试用例
