@@ -35,13 +35,13 @@ cloud_mall_prod_data = {
     'US_coupon_text': 'testyjm11',
     'GB_coupon_text': 'testyjm15',
     'US_adyen_info': {
-        'US_adyen_payment': '4336 6800 0926 7119',
+        'US_adyen_payment': 'xxxxxxx',
         'US_adyen_name': 'test',
         'US_adyen_card_time': '10/22',
         'US_card_code': '766'
     },
     'US_paypal_info': {
-        'paypal_email': 'sisi.zeng@imaygou.com',
+        'paypal_email': 'xxxxxx',
         'paypal_password': 'Cloudmall0311'
     }
 }
@@ -78,13 +78,13 @@ haff_price_prod_data = {
     'US_coupon_text': 'testyjm11',
     'GB_coupon_text': 'testyjm15',
     'US_adyen_info': {
-        'US_adyen_payment': '4336 6800 0926 7119',
+        'US_adyen_payment': 'xxxxx',
         'US_adyen_name': 'test',
         'US_adyen_card_time': '10/22',
         'US_card_code': '766'
     },
     'US_paypal_info': {
-        'paypal_email': 'sisi.zeng@imaygou.com',
+        'paypal_email': 'sxxxxxx',
         'paypal_password': 'Cloudmall0311'
     }
 }
